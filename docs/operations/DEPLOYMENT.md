@@ -17,6 +17,22 @@ pnpm build
 pnpm desktop:build:portable
 ```
 
+该命令生成不带安装器的 Windows x64 可执行文件：
+
+```text
+src-tauri/target/release/trippath.exe
+```
+
+### GitHub Releases
+
+`.github/workflows/release.yml` 在发布安装包后，会额外运行一次 `tauri build --no-bundle`，并将原始可执行文件发布为：
+
+```text
+TripPath-<版本>-windows-x64-portable.exe
+```
+
+该绿色版不创建安装器注册信息，但仍依赖 Windows 系统中的 WebView2；它不是包含运行时的完全离线单文件包。推送 `v*.*.*` 标签或手动运行“桌面版发布”工作流即可触发发布。
+
 桌面端构建要求见 [Tauri 桌面版验证说明](../development/TAURI_DESKTOP.md)。
 
 ## 安全边界
