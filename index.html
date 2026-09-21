@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#536fda" />
+    <meta name="application-name" content="TripPath" />
+    <meta id="app-description" name="description" content="在地图与连续行程中收集地点、编排路线、核验时间和预算。" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <script>
+      try {
+        const locale = localStorage.getItem('interactiveTravel.locale.v1') || (navigator.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US')
+        document.documentElement.lang = locale
+        if (locale === 'en-US') {
+          document.title = 'TripPath · Interactive Travel Planner'
+          document.getElementById('app-description')?.setAttribute('content', 'Plan places, routes, timing, budgets, weather, and travel risks in one interactive workspace.')
+        }
+      } catch {}
+    </script>
+    <title>行途规划 · 旅行路线规划器</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

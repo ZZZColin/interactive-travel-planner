@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="行途规划">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="57" y2="59" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#536FDA"/>
+      <stop offset="1" stop-color="#7D8FE7"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="18" y1="10" x2="42" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".24"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="58" height="58" rx="17" fill="url(#bg)"/>
+  <path d="M14.5 43.5C20.5 43.5 19 32 26.5 31.5C35.5 31 31.5 19 43.5 18.5" fill="none" stroke="#FFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="15" cy="44" r="5.5" fill="#FFF"/>
+  <circle cx="27" cy="31.5" r="4.2" fill="#FFF"/>
+  <path d="M43.5 12.5C38.8 12.5 35 16.3 35 21C35 27.4 43.5 36.5 43.5 36.5S52 27.4 52 21C52 16.3 48.2 12.5 43.5 12.5Z" fill="#FFF"/>
+  <circle cx="43.5" cy="21" r="3.3" fill="#6077DA"/>
+  <path d="M12 9C25 4 45 7 55 20" fill="none" stroke="url(#shine)" stroke-width="4" stroke-linecap="round"/>
+</svg>
