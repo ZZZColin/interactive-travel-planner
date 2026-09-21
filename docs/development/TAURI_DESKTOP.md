@@ -37,6 +37,8 @@ pnpm desktop:build:installer
 src-tauri/target/release/trippath.exe
 ```
 
+GitHub Actions 会将该原始可执行文件发布为 `TripPath-<版本>-windows-x64-portable.exe`。它不包含安装器，也不会写入安装器注册信息，但运行时仍要求 Windows 已安装 WebView2。
+
 当前 Tauri 配置：
 
 ```text
