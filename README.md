@@ -45,6 +45,16 @@ http://127.0.0.1:8765/
 ```
 
 开发端口固定为 `8765`，与当前高德 Web Key 的本地域名配置保持一致。
+## 桌面版下载
+
+桌面版由 GitHub Actions 自动构建并发布到 [GitHub Releases](https://github.com/pedoc/interactive-travel-planner/releases/latest)。当前工作流提供：
+
+- Windows x64：`.msi` / `.exe`；
+- macOS arm64：`.dmg`；
+- macOS x64：`.dmg`；
+- Linux x64：`.AppImage` / `.deb`。
+
+发布新版本时创建并推送形如 `v0.1.0` 的 Git 标签即可触发构建；也可以在 GitHub Actions 页面手动运行“桌面版发布”工作流。当前安装包未配置代码签名和公证，首次运行时可能需要按照系统提示确认。
 
 
 ## UI 组件与主题
