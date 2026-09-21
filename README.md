@@ -2,20 +2,15 @@
 
 ## 界面预览
 
-TripPath 将地点收集、按天编排、路线规划和出发检查整合在同一个旅行工作台中。
+以下截图来自使用仓库中的完整迁移计划实际恢复后运行的当前版本，不是静态设计稿：
 
 <p align="center">
-  <img src="./visual-regression/overview.png" alt="TripPath 旅行规划工作台总览" width="100%" />
+  <img src="./docs/screenshots/restored-home.png" alt="恢复完整迁移计划后的旅行计划首页" width="100%" />
 </p>
 
-| 行程编排与地图联动 | AI 识别旅行分享 |
+| 恢复后的计划首页 | 恢复后的真实行程与地图 |
 |---|---|
-| <img src="./visual-regression/product-mode-planner.png" alt="行程编排与地图联动" /> | <img src="./visual-regression/ai-import-preview.png" alt="AI 识别旅行分享并生成计划草稿" /> |
-
-| 多交通方式路线 | 预算与出发检查 |
-|---|---|
-| <img src="./visual-regression/map-route-mode-labels.png" alt="地图路线和交通方式标签" /> | <img src="./visual-regression/plan-backup-restore.png" alt="计划备份与恢复" /> |
-
+| <img src="./docs/screenshots/restored-home.png" alt="恢复后的计划首页" /> | <img src="./docs/screenshots/restored-plan-chuanxi.png" alt="恢复后的川西六日自驾行程与 Cesium 地图" /> |
 ## 技术栈
 
 - Vue 3
