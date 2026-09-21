@@ -44,7 +44,7 @@ http://127.0.0.1:8765/
 
 桌面版由 GitHub Actions 自动构建并发布到 [GitHub Releases](https://github.com/pedoc/interactive-travel-planner/releases/latest)。当前工作流提供：
 
-- Windows x64：`.msi` / `.exe`；
+- Windows x64：`.msi` / `.exe` 安装包，以及无需安装的 `-portable.exe` 可移植版；
 - macOS arm64：`.dmg`；
 - macOS x64：`.dmg`；
 - Linux x64：`.AppImage` / `.deb`。
