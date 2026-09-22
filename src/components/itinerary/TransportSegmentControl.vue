@@ -132,7 +132,7 @@ watch(() => store.previewRouteOptionId, (id) => { if (id && routeOptionsOpen.val
 watch(mode, () => { routeOptions.value = []; previewRouteId.value = ''; routeOptionsOpen.value = false })
 watch(routePreference, () => { routeOptions.value = []; previewRouteId.value = ''; if (routeOptionsOpen.value) void loadRouteOptions(true) })
 
-watch(() => store.selectedSegmentUid, (uid) => { if (uid !== props.stop.uid) return; if (supportsRouteOptions.value) routeOptionsOpen.value = true; else if (isManual.value) manualOpen.value = true })
+watch(() => store.selectedSegmentUid, (uid) => { if (uid !== props.stop.uid || store.readOnly) return; if (supportsRouteOptions.value) routeOptionsOpen.value = true; else if (isManual.value) manualOpen.value = true })
 
 watch(manualOpen, (open) => {
   if (open) resetManualDraft()

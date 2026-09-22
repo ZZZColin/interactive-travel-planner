@@ -135,8 +135,13 @@ export function expenseItemAmountRange(item: ExpenseItem): ExpenseAmountRange | 
   if (item.status === 'free') return { min: 0, expected: 0, max: 0 }
   if (item.status === 'unknown') return null
   const fixed = item.unitPrice == null ? null : Math.max(0, item.quantity) * Math.max(0, item.unitPrice)
-  const min = item.minAmount ?? fixed
-  const max = item.maxAmount ?? fixed ?? min
+  // 只有 minAmount/maxAmount 中的一边有值时（比如只导入了 maxAmount，
+  // 没有 minAmount 也没有 unitPrice），把缺失的一边退化为已有的那一边，
+  // 而不是让整条费用直接判定为"价格未知"、把已有的数值默默丢掉。
+  // 正常的 UI 保存路径（ExpenseEditorPopover）会强制 min/max 成对填写，
+  // 这里主要是为了兜住备份导入等旁路数据。
+  const min = item.minAmount ?? fixed ?? item.maxAmount ?? null
+  const max = item.maxAmount ?? fixed ?? item.minAmount ?? null
   if (min == null || max == null) return null
   return { min: Math.min(min, max), expected: fixed ?? (min + max) / 2, max: Math.max(min, max) }
 }
