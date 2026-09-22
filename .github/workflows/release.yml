@@ -1,14 +1,14 @@
 name: 发布（桌面版 + Docker 镜像）
-
+ 
 on:
   push:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
-
+ 
 permissions:
   contents: write
-
+ 
 jobs:
   publish-tauri:
     name: 发布 ${{ matrix.platform }} ${{ matrix.arch }}
@@ -33,32 +33,45 @@ jobs:
             arch: x64
             rust-targets: x86_64-apple-darwin
             args: '--target x86_64-apple-darwin'
-
+ 
     steps:
       - name: 检出源码
         uses: actions/checkout@v4
-
+ 
       - name: 安装 pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 12.4.0
-
+ 
       - name: 配置 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-
+ 
+      - name: 用 tag 号覆盖 tauri.conf.json 里的 version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "
+            const fs = require('fs');
+            const path = 'src-tauri/tauri.conf.json';
+            const conf = JSON.parse(fs.readFileSync(path, 'utf8'));
+            conf.version = '$VERSION';
+            fs.writeFileSync(path, JSON.stringify(conf, null, 2) + '\n');
+          "
+ 
       - name: 安装 Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust-targets }}
-
+ 
       - name: 缓存 Rust 构建
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
-
+ 
       - name: 安装 Linux 构建依赖
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -69,13 +82,13 @@ jobs:
             librsvg2-dev \
             patchelf \
             xdg-utils
-
+ 
       - name: 安装前端依赖
         run: pnpm install --frozen-lockfile
-
+ 
       - name: 类型检查
         run: pnpm type-check
-
+ 
       - name: 构建并发布 Tauri 安装包
         uses: tauri-apps/tauri-action@v1.0.0
         env:
@@ -85,11 +98,11 @@ jobs:
           releaseName: TripPath v__VERSION__
           releaseBody: |
             TripPath 桌面版安装包。
-
+ 
             - Windows：下载 `.msi` / `.exe` 安装包，或下载无需安装的 `-portable.exe` 可移植版
             - macOS：下载对应架构的 `.dmg`
             - Linux：下载 `.AppImage` 或 `.deb`
-
+ 
             当前版本不包含任何 API Key；地图、天气和 AI 服务凭据需要在应用内配置。
           releaseDraft: false
           prerelease: false
@@ -97,41 +110,54 @@ jobs:
           uploadUpdaterJson: false
           uploadUpdaterSignatures: false
           args: ${{ matrix.args }}
-
+ 
   publish-portable:
     name: 发布 Windows x64 可移植版
     needs: publish-tauri
     runs-on: windows-latest
-
+ 
     steps:
       - name: 检出源码
         uses: actions/checkout@v4
-
+ 
       - name: 安装 pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 12.4.0
-
+ 
       - name: 配置 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-
+ 
+      - name: 用 tag 号覆盖 tauri.conf.json 里的 version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "
+            const fs = require('fs');
+            const path = 'src-tauri/tauri.conf.json';
+            const conf = JSON.parse(fs.readFileSync(path, 'utf8'));
+            conf.version = '$VERSION';
+            fs.writeFileSync(path, JSON.stringify(conf, null, 2) + '\n');
+          "
+ 
       - name: 安装 Rust
         uses: dtolnay/rust-toolchain@stable
-
+ 
       - name: 缓存 Rust 构建
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
-
+ 
       - name: 安装前端依赖
         run: pnpm install --frozen-lockfile
-
+ 
       - name: 类型检查
         run: pnpm type-check
-
+ 
       - name: 构建并发布可移植版
         uses: tauri-apps/tauri-action@v1.0.0
         env:
@@ -144,7 +170,7 @@ jobs:
           args: '--no-bundle'
           uploadPlainBinary: true
           releaseAssetNamePattern: 'TripPath-[version]-[platform]-[arch]-portable[ext]'
-
+ 
   docker-build-push:
     name: 构建并推送 Docker 镜像
     runs-on: ubuntu-latest
@@ -152,15 +178,15 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-
+ 
       - uses: docker/setup-buildx-action@v3
-
+ 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+ 
       - name: Extract image tags
         id: meta
         uses: docker/metadata-action@v5
@@ -169,7 +195,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=raw,value=latest
-
+ 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
