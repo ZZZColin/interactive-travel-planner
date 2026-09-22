@@ -6,11 +6,13 @@ import rateLimit from 'express-rate-limit'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
+import http from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Database from 'better-sqlite3'
 import { authenticator } from 'otplib'
 import QRCode from 'qrcode'
+import { attachCollabServer, flushAllRooms } from './collabServer.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -74,6 +76,40 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS configs (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     data TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS trip_data (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    data TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS shared_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    client_plan_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    record TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(owner_id, client_plan_id)
+  );
+  CREATE TABLE IF NOT EXISTS plan_shares (
+    shared_plan_id INTEGER NOT NULL REFERENCES shared_plans(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    permission TEXT NOT NULL DEFAULT 'view',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (shared_plan_id, user_id)
+  );
+  CREATE TABLE IF NOT EXISTS synced_plans (
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    client_plan_id TEXT NOT NULL,
+    record TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (owner_id, client_plan_id)
+  );
+  CREATE TABLE IF NOT EXISTS collab_docs (
+    shared_plan_id INTEGER PRIMARY KEY REFERENCES shared_plans(id) ON DELETE CASCADE,
+    state BLOB NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE TABLE IF NOT EXISTS audit_log (
@@ -390,6 +426,206 @@ app.put('/api/config', authMiddleware, (req, res) => {
   res.json({ ok: true })
 })
 
+// ---------------------------------------------------------------------------
+// 旅行计划数据（行程、未安排地点、预算、路线缓存等）——按账号隔开，
+// 逻辑和上面的服务配置完全一样，只是存的内容和表不同。
+// ---------------------------------------------------------------------------
+
+app.get('/api/trip-data', authMiddleware, (req, res) => {
+  const row = db.prepare('SELECT data, updated_at FROM trip_data WHERE user_id = ?').get(req.user.id)
+  if (!row) return res.json({ data: null, updatedAt: null })
+  res.json({ data: JSON.parse(row.data), updatedAt: row.updated_at })
+})
+
+app.put('/api/trip-data', authMiddleware, (req, res) => {
+  const data = req.body
+  if (!data || typeof data !== 'object') return res.status(400).json({ error: '计划数据不合法' })
+  const json = JSON.stringify(data)
+  db.prepare(`
+    INSERT INTO trip_data (user_id, data, updated_at) VALUES (?, ?, datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
+  `).run(req.user.id, json)
+  res.json({ ok: true, updatedAt: db.prepare('SELECT updated_at FROM trip_data WHERE user_id = ?').get(req.user.id).updated_at })
+})
+
+// ---------------------------------------------------------------------------
+// 计划分享——把某个本地计划（PlanRecord）分享给另一个账号，可以选"只读"
+// 还是"可编辑"。owner 一侧的快照存在 shared_plans 里，按 (owner_id,
+// client_plan_id) 唯一；分享给谁、什么权限存在 plan_shares 里。
+// ---------------------------------------------------------------------------
+
+function loadSharedPlanFor(req, res, requireEdit) {
+  const id = Number(req.params.id)
+  const row = db.prepare('SELECT * FROM shared_plans WHERE id = ?').get(id)
+  if (!row) {
+    res.status(404).json({ error: '分享的计划不存在或已被删除' })
+    return null
+  }
+  if (row.owner_id === req.user.id) return { row, permission: 'owner' }
+  const share = db.prepare('SELECT permission FROM plan_shares WHERE shared_plan_id = ? AND user_id = ?').get(id, req.user.id)
+  if (!share || (requireEdit && share.permission !== 'edit')) {
+    res.status(403).json({ error: requireEdit ? '你对这个计划只有查看权限' : '你没有权限访问这个计划' })
+    return null
+  }
+  return { row, permission: share.permission }
+}
+
+// owner 一侧：把本地某个计划的最新快照 upsert 到服务器（分享时、以及之后
+// 每次编辑该计划都会调用），按 (owner_id, client_plan_id) 去重。
+app.post('/api/shared-plans', authMiddleware, (req, res) => {
+  const { clientPlanId, name, record } = req.body ?? {}
+  if (!clientPlanId || typeof clientPlanId !== 'string' || !record || typeof record !== 'object') {
+    return res.status(400).json({ error: '计划内容不合法' })
+  }
+  const json = JSON.stringify(record)
+  db.prepare(`
+    INSERT INTO shared_plans (owner_id, client_plan_id, name, record, updated_at) VALUES (?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(owner_id, client_plan_id) DO UPDATE SET name = excluded.name, record = excluded.record, updated_at = excluded.updated_at
+  `).run(req.user.id, clientPlanId, String(name ?? '未命名计划'), json)
+  const row = db.prepare('SELECT id, updated_at FROM shared_plans WHERE owner_id = ? AND client_plan_id = ?').get(req.user.id, clientPlanId)
+  res.json({ id: row.id, updatedAt: row.updated_at })
+})
+
+app.get('/api/shared-plans/mine', authMiddleware, (req, res) => {
+  const rows = db.prepare('SELECT id, client_plan_id, name, updated_at FROM shared_plans WHERE owner_id = ? ORDER BY updated_at DESC').all(req.user.id)
+  const shares = db.prepare(`
+    SELECT ps.shared_plan_id, ps.permission, u.id AS user_id, u.username
+    FROM plan_shares ps JOIN users u ON u.id = ps.user_id
+    WHERE ps.shared_plan_id IN (SELECT id FROM shared_plans WHERE owner_id = ?)
+  `).all(req.user.id)
+  const sharesByPlanId = new Map()
+  shares.forEach((share) => {
+    const list = sharesByPlanId.get(share.shared_plan_id) ?? []
+    list.push({ userId: share.user_id, username: share.username, permission: share.permission })
+    sharesByPlanId.set(share.shared_plan_id, list)
+  })
+  res.json({
+    plans: rows.map((row) => ({
+      id: row.id,
+      clientPlanId: row.client_plan_id,
+      name: row.name,
+      updatedAt: row.updated_at,
+      shares: sharesByPlanId.get(row.id) ?? [],
+    })),
+  })
+})
+
+app.get('/api/shared-plans/shared-with-me', authMiddleware, (req, res) => {
+  const rows = db.prepare(`
+    SELECT sp.id, sp.name, sp.updated_at, ps.permission, u.username AS owner_username
+    FROM plan_shares ps
+    JOIN shared_plans sp ON sp.id = ps.shared_plan_id
+    JOIN users u ON u.id = sp.owner_id
+    WHERE ps.user_id = ?
+    ORDER BY sp.updated_at DESC
+  `).all(req.user.id)
+  res.json({
+    plans: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      updatedAt: row.updated_at,
+      permission: row.permission,
+      ownerUsername: row.owner_username,
+    })),
+  })
+})
+
+app.get('/api/shared-plans/:id', authMiddleware, (req, res) => {
+  const result = loadSharedPlanFor(req, res, false)
+  if (!result) return
+  res.json({ id: result.row.id, name: result.row.name, record: JSON.parse(result.row.record), updatedAt: result.row.updated_at, permission: result.permission })
+})
+
+// 有编辑权限的一方（包括 owner 自己）推送最新内容
+app.put('/api/shared-plans/:id', authMiddleware, (req, res) => {
+  const result = loadSharedPlanFor(req, res, true)
+  if (!result) return
+  const { record, name } = req.body ?? {}
+  if (!record || typeof record !== 'object') return res.status(400).json({ error: '计划内容不合法' })
+  db.prepare(`UPDATE shared_plans SET record = ?, name = COALESCE(?, name), updated_at = datetime('now') WHERE id = ?`)
+    .run(JSON.stringify(record), name ? String(name) : null, result.row.id)
+  const row = db.prepare('SELECT updated_at FROM shared_plans WHERE id = ?').get(result.row.id)
+  res.json({ ok: true, updatedAt: row.updated_at })
+})
+
+app.delete('/api/shared-plans/:id', authMiddleware, (req, res) => {
+  const row = db.prepare('SELECT * FROM shared_plans WHERE id = ?').get(Number(req.params.id))
+  if (!row) return res.status(404).json({ error: '分享的计划不存在' })
+  if (row.owner_id !== req.user.id) return res.status(403).json({ error: '只有计划所有者可以取消整个分享' })
+  db.prepare('DELETE FROM shared_plans WHERE id = ?').run(row.id)
+  logAudit(req, 'plan_share_deleted', `已停止分享“${row.name}”`, req.user)
+  res.json({ ok: true })
+})
+
+app.post('/api/shared-plans/:id/shares', authMiddleware, (req, res) => {
+  const row = db.prepare('SELECT * FROM shared_plans WHERE id = ?').get(Number(req.params.id))
+  if (!row) return res.status(404).json({ error: '分享的计划不存在' })
+  if (row.owner_id !== req.user.id) return res.status(403).json({ error: '只有计划所有者可以分享' })
+  const { username, permission } = req.body ?? {}
+  if (!username || typeof username !== 'string') return res.status(400).json({ error: '请填写要分享给的用户名' })
+  if (permission !== 'view' && permission !== 'edit') return res.status(400).json({ error: '权限只能是查看或编辑' })
+  const target = db.prepare('SELECT id, username FROM users WHERE username = ?').get(username.trim())
+  if (!target) return res.status(404).json({ error: `找不到用户名为“${username}”的账号` })
+  if (target.id === req.user.id) return res.status(400).json({ error: '不能分享给自己' })
+  db.prepare(`
+    INSERT INTO plan_shares (shared_plan_id, user_id, permission) VALUES (?, ?, ?)
+    ON CONFLICT(shared_plan_id, user_id) DO UPDATE SET permission = excluded.permission
+  `).run(row.id, target.id, permission)
+  logAudit(req, 'plan_shared', `已把“${row.name}”分享给 ${target.username}（${permission === 'edit' ? '可编辑' : '只读'}）`, req.user)
+  res.json({ ok: true })
+})
+
+app.delete('/api/shared-plans/:id/shares/:userId', authMiddleware, (req, res) => {
+  const row = db.prepare('SELECT * FROM shared_plans WHERE id = ?').get(Number(req.params.id))
+  if (!row) return res.status(404).json({ error: '分享的计划不存在' })
+  if (row.owner_id !== req.user.id) return res.status(403).json({ error: '只有计划所有者可以取消分享' })
+  db.prepare('DELETE FROM plan_shares WHERE shared_plan_id = ? AND user_id = ?').run(row.id, Number(req.params.userId))
+  logAudit(req, 'plan_share_revoked', `已取消“${row.name}”对某个账号的分享`, req.user)
+  res.json({ ok: true })
+})
+
+// ---------------------------------------------------------------------------
+// 全部计划跨设备同步——按账号把 stores/plans.ts 里的每一个计划（不管有没有
+// 分享出去）都同步到服务器，用于换设备/换浏览器登录同一账号时恢复完整的
+// 计划列表。用 deleted 标记而不是真的删行，这样"在这台设备删除了计划"这件
+// 事才能同步到别的设备（否则别的设备下次同步会把它当成"服务器没有，本地
+// 有"又推送回去，变成删不掉）。
+// ---------------------------------------------------------------------------
+
+app.get('/api/synced-plans', authMiddleware, (req, res) => {
+  const rows = db.prepare('SELECT client_plan_id, record, deleted, updated_at FROM synced_plans WHERE owner_id = ?').all(req.user.id)
+  res.json({
+    plans: rows.map((row) => ({
+      clientPlanId: row.client_plan_id,
+      record: row.deleted ? null : JSON.parse(row.record),
+      deleted: Boolean(row.deleted),
+      updatedAt: row.updated_at,
+    })),
+  })
+})
+
+app.put('/api/synced-plans/:clientPlanId', authMiddleware, (req, res) => {
+  const { record } = req.body ?? {}
+  if (!record || typeof record !== 'object') return res.status(400).json({ error: '计划内容不合法' })
+  const clientPlanId = req.params.clientPlanId
+  db.prepare(`
+    INSERT INTO synced_plans (owner_id, client_plan_id, record, deleted, updated_at) VALUES (?, ?, ?, 0, datetime('now'))
+    ON CONFLICT(owner_id, client_plan_id) DO UPDATE SET record = excluded.record, deleted = 0, updated_at = excluded.updated_at
+  `).run(req.user.id, clientPlanId, JSON.stringify(record))
+  const row = db.prepare('SELECT updated_at FROM synced_plans WHERE owner_id = ? AND client_plan_id = ?').get(req.user.id, clientPlanId)
+  res.json({ updatedAt: row.updated_at })
+})
+
+app.delete('/api/synced-plans/:clientPlanId', authMiddleware, (req, res) => {
+  const clientPlanId = req.params.clientPlanId
+  db.prepare(`
+    INSERT INTO synced_plans (owner_id, client_plan_id, record, deleted, updated_at) VALUES (?, ?, '{}', 1, datetime('now'))
+    ON CONFLICT(owner_id, client_plan_id) DO UPDATE SET deleted = 1, updated_at = excluded.updated_at
+  `).run(req.user.id, clientPlanId)
+  const row = db.prepare('SELECT updated_at FROM synced_plans WHERE owner_id = ? AND client_plan_id = ?').get(req.user.id, clientPlanId)
+  res.json({ updatedAt: row.updated_at })
+})
+
 app.post('/api/change-password', authMiddleware, (req, res) => {
   const { currentPassword, newPassword } = req.body ?? {}
   if (!currentPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
@@ -509,4 +745,29 @@ app.get(/^(?!\/api\/).*/, (req, res) => {
   res.sendFile(path.join(STATIC_DIR, 'index.html'))
 })
 
-app.listen(PORT, () => console.log(`TripPath 服务已启动，监听端口 ${PORT}（前端 + API 同一个进程）`))
+// 用 http.createServer 包一层而不是直接 app.listen，是因为逐字实时协作
+// 需要在同一个端口上升级（upgrade）出 WebSocket 连接，这只能挂在原始的
+// http.Server 上，Express 的 app 本身不处理 upgrade 事件。
+const server = http.createServer(app)
+attachCollabServer(server, db, { hashToken })
+server.listen(PORT, () => console.log(`TripPath 服务已启动，监听端口 ${PORT}（前端 + API + 协作 WebSocket 同一个进程）`))
+
+// 优雅关闭：容器重新部署、`docker stop`、systemd 重启服务的时候，
+// Node 进程收到的是 SIGTERM（Ctrl+C 是 SIGINT），默认处理方式是直接退出，
+// 这样正在协作房间里、还没到 2 秒防抖时间点的编辑就没机会存盘了。这里在
+// 真正退出前，先把所有还开着的协作房间立刻落盘一次。
+function gracefulShutdown(signal) {
+  console.log(`收到 ${signal}，正在保存所有协作房间的内容后退出…`)
+  try {
+    flushAllRooms(db)
+  } catch (error) {
+    console.error('优雅关闭时保存协作房间失败', error)
+  }
+  server.close(() => process.exit(0))
+  // 万一 server.close 因为还有连接没断开而迟迟不触发回调，给个兜底超时，
+  // 保证进程最终还是会退出（协作内容已经在上面同步存过盘了，不会因为
+  // 这里的兜底退出而丢数据）。
+  setTimeout(() => process.exit(0), 5000).unref()
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))

@@ -28,6 +28,23 @@ function apiBase(): string {
   return base ? `${base}/api` : '/api'
 }
 
+// 逐字实时协作用的 WebSocket 地址：跟上面 apiBase() 是同一套"服务器在哪"
+// 的逻辑（网页版同源、桌面版用 ServerAddressGate 里配置的地址），只是把
+// http(s) 换成 ws(s)，浏览器建立 WebSocket 连接时会自动带上同源/同站的
+// cookie，不需要另外传 token。
+export function collabWsUrl(path: string): string {
+  if (!isTauri()) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${window.location.host}${path}`
+  }
+  const base = getServerBaseUrl()
+  if (!base) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${window.location.host}${path}`
+  }
+  return `${base.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:')}${path}`
+}
+
 export interface SessionInfo {
   username: string
   role: 'admin' | 'member'
@@ -127,6 +144,110 @@ export function fetchServerConfig(): Promise<ServerConfigResponse> {
 
 export function pushServerConfig(data: unknown): Promise<void> {
   return request('/config', { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export function fetchTripData(): Promise<ServerConfigResponse> {
+  return request<ServerConfigResponse>('/trip-data')
+}
+
+export function pushTripData(data: unknown): Promise<{ ok: true; updatedAt: string }> {
+  return request('/trip-data', { method: 'PUT', body: JSON.stringify(data) })
+}
+
+// ---------------------------------------------------------------------------
+// 计划分享：把某一个本地计划（PlanRecord）分享给另一个账号，
+// 可以选"只读"还是"可编辑"。
+// ---------------------------------------------------------------------------
+
+export type SharePermission = 'view' | 'edit'
+export type EffectivePermission = 'owner' | SharePermission
+
+export interface ShareGrant {
+  userId: number
+  username: string
+  permission: SharePermission
+}
+
+export interface MySharedPlanSummary {
+  id: number
+  clientPlanId: string
+  name: string
+  updatedAt: string
+  shares: ShareGrant[]
+}
+
+export interface SharedWithMePlanSummary {
+  id: number
+  name: string
+  updatedAt: string
+  permission: SharePermission
+  ownerUsername: string
+}
+
+export interface SharedPlanDetail {
+  id: number
+  name: string
+  record: unknown
+  updatedAt: string
+  permission: EffectivePermission
+}
+
+// owner 侧：把某个本地计划的最新快照 upsert 到服务器（分享时、以及之后每次
+// 编辑该计划都会调用），按本地计划 id 去重，返回服务器上的分享计划 id。
+export function upsertSharedPlanSnapshot(clientPlanId: string, name: string, record: unknown): Promise<{ id: number; updatedAt: string }> {
+  return request('/shared-plans', { method: 'POST', body: JSON.stringify({ clientPlanId, name, record }) })
+}
+
+export function listMySharedPlans(): Promise<MySharedPlanSummary[]> {
+  return request<{ plans: MySharedPlanSummary[] }>('/shared-plans/mine').then((res) => res.plans)
+}
+
+export function listPlansSharedWithMe(): Promise<SharedWithMePlanSummary[]> {
+  return request<{ plans: SharedWithMePlanSummary[] }>('/shared-plans/shared-with-me').then((res) => res.plans)
+}
+
+export function fetchSharedPlan(id: number): Promise<SharedPlanDetail> {
+  return request(`/shared-plans/${id}`)
+}
+
+export function pushSharedPlan(id: number, record: unknown, name?: string): Promise<{ ok: true; updatedAt: string }> {
+  return request(`/shared-plans/${id}`, { method: 'PUT', body: JSON.stringify({ record, name }) })
+}
+
+export function deleteSharedPlan(id: number): Promise<void> {
+  return request(`/shared-plans/${id}`, { method: 'DELETE' })
+}
+
+export function grantPlanShare(id: number, username: string, permission: SharePermission): Promise<void> {
+  return request(`/shared-plans/${id}/shares`, { method: 'POST', body: JSON.stringify({ username, permission }) })
+}
+
+export function revokePlanShare(id: number, userId: number): Promise<void> {
+  return request(`/shared-plans/${id}/shares/${userId}`, { method: 'DELETE' })
+}
+
+// ---------------------------------------------------------------------------
+// 全部计划跨设备同步：把 stores/plans.ts 里的每一个计划都同步到服务器，
+// 换设备/换浏览器登录同一账号能看到完整的计划列表。
+// ---------------------------------------------------------------------------
+
+export interface SyncedPlanRow {
+  clientPlanId: string
+  record: unknown
+  deleted: boolean
+  updatedAt: string
+}
+
+export function listSyncedPlans(): Promise<SyncedPlanRow[]> {
+  return request<{ plans: SyncedPlanRow[] }>('/synced-plans').then((res) => res.plans)
+}
+
+export function pushSyncedPlan(clientPlanId: string, record: unknown): Promise<{ updatedAt: string }> {
+  return request(`/synced-plans/${encodeURIComponent(clientPlanId)}`, { method: 'PUT', body: JSON.stringify({ record }) })
+}
+
+export function deleteSyncedPlan(clientPlanId: string): Promise<{ updatedAt: string }> {
+  return request(`/synced-plans/${encodeURIComponent(clientPlanId)}`, { method: 'DELETE' })
 }
 
 export function changePassword(currentPassword: string, newPassword: string): Promise<void> {

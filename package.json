@@ -31,7 +31,9 @@
     "pinia": "^4.0.3",
     "primeicons": "^8.0.1",
     "vue": "^3.5.41",
-    "vue-i18n": "^11.4.12"
+    "vue-i18n": "^11.4.12",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.20"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

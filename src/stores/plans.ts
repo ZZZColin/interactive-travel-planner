@@ -9,6 +9,10 @@ import type { ResolvedPlanImport } from '../ai/types'
 import type { PersistedPlannerState, Place, PlaceCategory, PlanEditorValue, PlanRecord } from '../domain/types'
 import { urlWithPlanId, type PlanNavigationMode } from '../domain/planUrl'
 import { usePlannerStore } from './planner'
+import { notifyPlanPersisted, deleteSharedPlanIfTracked, getTrackedSharedPlanId } from '../sharing/sharedPlanOwnerSync'
+import { deleteSyncedPlan, fetchSession, listSyncedPlans } from '../auth/client'
+import { forgetPlan, getBookkeeping, pushPlanNow, recordServerAdopted, schedulePushPlan } from '../sync/allPlansSync'
+import { activeCollabSession, connectPlanCollab, disconnectPlanCollab } from '../collab/planCollab'
 
 const STORAGE_KEY = 'interactiveTravel.plans.continuous.v1'
 const VERSION_STORAGE_KEY = 'interactiveTravel.planVersions.continuous.v1'
@@ -62,6 +66,35 @@ export const usePlansStore = defineStore('plans', () => {
 
 
 
+  // owner 自己打开一份"已经分享出去"的计划时，也接入逐字实时协作（跟
+  // stores/sharedPlans.ts 打开"分享给我"的计划时连的是同一个房间），这样
+  // owner 才能实时看到协作者的字符级修改，不用等对方的整份快照防抖推送。
+  // 用 view + activePlanId 一起判断而不是只看 activePlanId，是因为
+  // goHome() 并不会清空 activePlanId（回首页之后"继续上次的计划"要用到），
+  // 只看 activePlanId 会漏掉"回了首页但还没切换到别的计划"这种情况下
+  // 本该断开协作连接的时机。
+  watch([view, activePlanId], ([currentView, id], previous) => {
+    const previousId = previous?.[1] ?? null
+    if (previousId != null) {
+      const previousSharedId = getTrackedSharedPlanId(previousId)
+      if (previousSharedId != null) disconnectPlanCollab(previousSharedId)
+    }
+    const sharedId = currentView === 'planner' && id != null ? getTrackedSharedPlanId(id) : null
+    if (sharedId == null) return
+    if (activeCollabSession.value?.sharedPlanId === sharedId) return
+    fetchSession()
+      .then((session) => {
+        // 等用户名查回来的这一小会儿，用户可能已经又切走了，不要连一个
+        // 不该连的房间
+        if (view.value === currentView && activePlanId.value === id) {
+          connectPlanCollab(sharedId, session.username)
+        }
+      })
+      .catch(() => {
+        // 拿不到当前用户名（比如会话刚好过期）就不接入协作，不影响计划本身的查看和编辑
+      })
+  })
+
   const sortedPlans = computed(() => [...plans.value].sort((left, right) =>
     new Date(right.metadata.startAt).getTime() - new Date(left.metadata.startAt).getTime()))
   const activePlan = computed(() => plans.value.find((plan) => plan.metadata.id === activePlanId.value) ?? null)
@@ -106,12 +139,19 @@ export const usePlansStore = defineStore('plans', () => {
     activePlan.value.routeCache = cloneRouteCache(planner.routeCache)
     activePlan.value.metadata.updatedAt = new Date().toISOString()
     const saved = persist()
+    if (saved) {
+      notifyPlanPersisted(clone(activePlan.value))
+      schedulePushPlan(clone(activePlan.value))
+    }
     queueMicrotask(() => { saveState.value = saved ? 'saved' : 'error' })
   }
 
   function openPlan(id: string, immediate = false, navigation: PlanNavigationMode = 'push'): void {
     const plan = plans.value.find((item) => item.metadata.id === id)
     if (!plan) return
+    // 打开自己的计划一定不是只读——防一手：如果是从查看某个只读共享计划
+    // 直接跳过来的（理论上界面流程不会这样，但这里保险一下）。
+    planner.setReadOnly(false)
     if (activePlanId.value === id) {
       openingToken += 1
       openingPlan.value = false
@@ -221,6 +261,7 @@ export const usePlansStore = defineStore('plans', () => {
     const record = createPlanRecord(value)
     plans.value.push(record)
     persist()
+    pushPlanNow(clone(record)).catch(() => {})
     openPlan(record.metadata.id)
     planner.notify('计划已创建')
   }
@@ -289,6 +330,8 @@ export const usePlansStore = defineStore('plans', () => {
       queueMicrotask(() => { hydrating = false })
     }
     persist()
+    notifyPlanPersisted(clone(plan))
+    pushPlanNow(clone(plan)).catch(() => {})
     planner.notify('计划信息已更新')
   }
 
@@ -355,6 +398,7 @@ export const usePlansStore = defineStore('plans', () => {
     importIntoState(record.plannerState, input, true)
     plans.value.push(record)
     persist()
+    pushPlanNow(clone(record)).catch(() => {})
     openPlan(record.metadata.id)
     planner.notify(`已通过 AI 创建“${record.metadata.name}”`)
   }
@@ -376,6 +420,7 @@ export const usePlansStore = defineStore('plans', () => {
     planner.loadState(clone(plan.plannerState), cloneRouteCache(plan.routeCache))
     queueMicrotask(() => { hydrating = false })
     persist()
+    pushPlanNow(clone(plan)).catch(() => {})
     planner.notify('AI 行程草稿已合并到当前计划')
   }
 
@@ -386,7 +431,20 @@ export const usePlansStore = defineStore('plans', () => {
     recycleBin.value.unshift({ id: `deleted_${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`, deletedAt: new Date().toISOString(), record: clone(removed) })
     recycleBin.value = recycleBin.value.slice(0, 30)
     if (activePlanId.value === id) activePlanId.value = null
+    // 删除前先按当前还没被 untrack 的 tracked id 断开协作连接：
+    // deleteSharedPlanIfTracked() 里会同步地把这个计划从"已分享"的追踪表
+    // 里摘掉，摘掉之后 activePlanId 变化触发的那个协作连接 watcher 就再也
+    // 查不到这个计划的 shared_plans id 了，没法自己断开，这里提前处理掉。
+    const sharedIdBeforeDelete = getTrackedSharedPlanId(id)
+    if (sharedIdBeforeDelete != null) disconnectPlanCollab(sharedIdBeforeDelete)
     persist(); persistAuxiliary()
+    // 把这个计划标记成"已删除"同步给服务器，别的设备下次同步时才会跟着删掉，
+    // 而不是反过来把这台设备删掉的计划又推送回去。
+    deleteSyncedPlan(id).catch(() => {})
+    // 如果这个计划之前分享给过别人，把服务器上那份分享快照和授权也一起
+    // 删掉，不然对方会一直看到一份不会再更新的“僵尸”计划。
+    deleteSharedPlanIfTracked(id).catch(() => {})
+    forgetPlan(id)
     planner.notify(`已将“${removed.metadata.name}”移入回收站`)
   }
 
@@ -398,7 +456,9 @@ export const usePlansStore = defineStore('plans', () => {
     if (plans.value.some((plan) => plan.metadata.id === record.metadata.id)) record.metadata.id = `plan_restored_${Date.now().toString(36)}`
     record.metadata.updatedAt = new Date().toISOString()
     plans.value.push(record)
-    persist(); persistAuxiliary(); planner.notify(`已恢复“${record.metadata.name}”`)
+    persist(); persistAuxiliary()
+    pushPlanNow(clone(record)).catch(() => {})
+    planner.notify(`已恢复“${record.metadata.name}”`)
   }
 
   function permanentlyDelete(recycleId: string): void {
@@ -415,7 +475,9 @@ export const usePlansStore = defineStore('plans', () => {
     plans.value.splice(index, 1, clone(version.record))
     plans.value[index].metadata.updatedAt = new Date().toISOString()
     if (activePlanId.value === version.planId) planner.loadState(clone(plans.value[index].plannerState), cloneRouteCache(plans.value[index].routeCache))
-    persist(); planner.notify(`已恢复“${version.planName}”的历史版本`)
+    persist()
+    pushPlanNow(clone(plans.value[index])).catch(() => {})
+    planner.notify(`已恢复“${version.planName}”的历史版本`)
   }
 
   function saveCurrent(): void {
@@ -424,7 +486,100 @@ export const usePlansStore = defineStore('plans', () => {
     activePlan.value.routeCache = cloneRouteCache(planner.routeCache)
     activePlan.value.metadata.updatedAt = new Date().toISOString()
     persist()
+    notifyPlanPersisted(clone(activePlan.value))
+    pushPlanNow(clone(activePlan.value)).catch(() => {})
     planner.notify('计划已保存')
+  }
+
+  // 全部计划跨设备同步：拉服务器上这个账号的完整计划列表，跟本地的
+  // plans.value 逐个比对合并。用 sync/allPlansSync.ts 里记的账本判断"服务器
+  // 变了吗"和"本地变了吗"，不直接比较两边的时间戳（格式和时钟都不一样）。
+  // 应用启动、窗口重新获得焦点、以及一个后台定时器都会调用这个函数。
+  async function syncWithServer(): Promise<void> {
+    let rows
+    try {
+      rows = await listSyncedPlans()
+    } catch {
+      return
+    }
+    const serverIds = new Set(rows.map((row) => row.clientPlanId))
+    let changed = false
+
+    for (const row of rows) {
+      const localIndex = plans.value.findIndex((plan) => plan.metadata.id === row.clientPlanId)
+      const bookkeeping = getBookkeeping(row.clientPlanId)
+
+      if (row.deleted) {
+        if (localIndex >= 0) {
+          const [removed] = plans.value.splice(localIndex, 1)
+          recycleBin.value.unshift({ id: `deleted_${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`, deletedAt: new Date().toISOString(), record: clone(removed) })
+          recycleBin.value = recycleBin.value.slice(0, 30)
+          if (activePlanId.value === row.clientPlanId) {
+            const wasOpen = view.value === 'planner'
+            activePlanId.value = null
+            if (wasOpen) { view.value = 'home'; updatePlanLocation(null, 'none') }
+            // 正在看着的计划被别的设备删掉了，不能什么都不说就把人弹回首页——
+            // 不然看起来像是出了故障。已经备份进回收站，提示一下就好。
+            if (wasOpen) planner.notify(`"${removed.metadata.name}" 在别的设备上被删除，已为你返回首页；这份计划还在回收站里`)
+          }
+          forgetPlan(row.clientPlanId)
+          changed = true
+        }
+        continue
+      }
+
+      const remote = row.record as PlanRecord
+      if (localIndex < 0) {
+        plans.value.push(clone(remote))
+        recordServerAdopted(row.clientPlanId, row.updatedAt, remote.metadata.updatedAt)
+        changed = true
+        continue
+      }
+
+      const local = plans.value[localIndex]
+      const serverChanged = !bookkeeping || row.updatedAt !== bookkeeping.serverUpdatedAt
+      const localChangedSincePush = !bookkeeping || local.metadata.updatedAt !== bookkeeping.pushedLocalUpdatedAt
+
+      if (serverChanged && !localChangedSincePush) {
+        plans.value.splice(localIndex, 1, clone(remote))
+        recordServerAdopted(row.clientPlanId, row.updatedAt, remote.metadata.updatedAt)
+        if (activePlanId.value === row.clientPlanId) {
+          hydrating = true
+          planner.loadState(clone(remote.plannerState), cloneRouteCache(remote.routeCache))
+          queueMicrotask(() => { hydrating = false })
+        }
+        changed = true
+      } else if (!serverChanged && localChangedSincePush) {
+        pushPlanNow(clone(local)).catch(() => {})
+      } else if (serverChanged && localChangedSincePush) {
+        // 两边都变了：正在打开的这份以本地为准（当前操作优先，视为还没
+        // 来得及推送），其余的以服务器为准（假设是别的设备上更新的）。
+        // 采用服务器版本前，先把这份本地改动存进回收站——不然如果这份
+        // 本地改动只是因为上次推送失败才卡在本地没同步上去，直接采用
+        // 服务器版本会把它悄悄丢掉。存进回收站至少还能手动找回来。
+        if (activePlanId.value === row.clientPlanId) {
+          pushPlanNow(clone(local)).catch(() => {})
+        } else {
+          recycleBin.value.unshift({
+            id: `conflict_${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`,
+            deletedAt: new Date().toISOString(),
+            record: clone(local),
+          })
+          recycleBin.value = recycleBin.value.slice(0, 30)
+          plans.value.splice(localIndex, 1, clone(remote))
+          recordServerAdopted(row.clientPlanId, row.updatedAt, remote.metadata.updatedAt)
+          planner.notify(`“${local.metadata.name}”在别的设备上也有更新，已采用较新的版本；你在本机的改动备份到了回收站`)
+          changed = true
+        }
+      }
+    }
+
+    // 本地有、服务器完全没见过的计划（比如刚创建时推送失败）→ 补推一次
+    for (const plan of plans.value) {
+      if (!serverIds.has(plan.metadata.id)) pushPlanNow(clone(plan)).catch(() => {})
+    }
+
+    if (changed) { persist(); persistAuxiliary() }
   }
 
   watch(
@@ -472,5 +627,6 @@ export const usePlansStore = defineStore('plans', () => {
     permanentlyDelete,
     restoreVersion,
     saveCurrent,
+    syncWithServer,
   }
 })

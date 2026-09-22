@@ -11,6 +11,7 @@ import CandidatePool from '../places/CandidatePool.vue'
 import DayItinerary from './DayItinerary.vue'
 import DayTabs from './DayTabs.vue'
 import PlanTimelineStatus from './PlanTimelineStatus.vue'
+import CollabPresenceBadge from './CollabPresenceBadge.vue'
 import { currentLocale } from '../../i18n'
 
 const props = defineProps<{ demoMode?: boolean }>()
@@ -98,6 +99,7 @@ watch(() => selectedDay.value.id, () => {
         <span class="statuspill" :class="{ warn: !overall.ok }">{{ overall.ok ? '计划可行' : `${overall.warnedDays.length + overall.missing.length} 个问题` }}</span>
         <span class="planner-head-metric"><b>{{ allScheduledIds.size }}</b> / {{ known.length }} 地点</span>
         <PlanTimelineStatus />
+        <CollabPresenceBadge />
       </div>
       <div v-if="weather.selectedProviderId !== 'none' && !weather.selectedProviderConfigured" class="weather-range-banner unconfigured">
         <i class="pi pi-exclamation-circle" />
@@ -148,6 +150,7 @@ watch(() => selectedDay.value.id, () => {
                 :step="1"
                 controls-position="right"
                 size="small"
+                :disabled="store.readOnly"
               />
             </label>
             <label>
@@ -160,20 +163,21 @@ watch(() => selectedDay.value.id, () => {
                 :step="15"
                 controls-position="right"
                 size="small"
+                :disabled="store.readOnly"
               />
             </label>
           </div>
           <div class="drive-limit-presets">
-            <button v-for="hours in [4, 6, 8, 10]" :key="hours" @click="chooseDriveLimit(hours)">{{ hours }} 小时</button>
+            <button v-for="hours in [4, 6, 8, 10]" :key="hours" :disabled="store.readOnly" @click="chooseDriveLimit(hours)">{{ hours }} 小时</button>
           </div>
           <div class="drive-limit-actions">
             <span>当前设置：{{ formatDuration(driveLimitTotal) }}</span>
             <ElButton size="small" @click="driveLimitOpen = false">取消</ElButton>
-            <ElButton type="primary" size="small" :disabled="driveLimitTotal < 30" @click="saveDriveLimit">保存</ElButton>
+            <ElButton type="primary" size="small" :disabled="driveLimitTotal < 30 || store.readOnly" @click="saveDriveLimit">保存</ElButton>
           </div>
         </div>
       </ElPopover>
-      <button v-if="props.demoMode" class="textbtn" @click="store.quickConflict">演示超时</button>
+      <button v-if="props.demoMode" class="textbtn" :disabled="store.readOnly" @click="store.quickConflict">演示超时</button>
     </div>
 
     <div class="itinerary">
@@ -183,3 +187,10 @@ watch(() => selectedDay.value.id, () => {
     <CandidatePool @batch="emit('batch')" @ai-import="emit('aiImport')" />
   </aside>
 </template>
+
+<style scoped>
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+</style>
