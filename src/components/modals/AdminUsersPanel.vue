@@ -122,17 +122,17 @@ onMounted(load)
     <ElTable :data="users" v-loading="loading" size="small">
       <ElTableColumn prop="username" label="用户名" />
       <ElTableColumn label="角色">
-        <template #default="{ row }">
+        <template #default="{ row }: { row: AdminUser }">
           <ElButton size="small" text @click="toggleRole(row)">{{ row.role === 'admin' ? '管理员' : '普通用户' }}</ElButton>
         </template>
       </ElTableColumn>
       <ElTableColumn label="状态">
-        <template #default="{ row }">
+        <template #default="{ row }: { row: AdminUser }">
           <ElSwitch :model-value="!row.disabled" @change="toggleDisabled(row)" />
         </template>
       </ElTableColumn>
       <ElTableColumn label="操作">
-        <template #default="{ row }">
+        <template #default="{ row }: { row: AdminUser }">
           <ElButton size="small" text @click="resetTargetId = row.id">重置密码</ElButton>
           <ElButton v-if="row.totp_enabled" size="small" text @click="resetTwoFactor(row)">重置两步验证</ElButton>
           <ElButton size="small" text type="danger" @click="removeUser(row)">删除</ElButton>
