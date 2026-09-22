@@ -122,20 +122,20 @@ onMounted(load)
     <ElTable :data="users" v-loading="loading" size="small">
       <ElTableColumn prop="username" label="用户名" />
       <ElTableColumn label="角色">
-        <template #default="{ row }: { row: AdminUser }">
-          <ElButton size="small" text @click="toggleRole(row)">{{ row.role === 'admin' ? '管理员' : '普通用户' }}</ElButton>
+        <template #default="{ row }">
+          <ElButton size="small" text @click="toggleRole(row as AdminUser)">{{ (row as AdminUser).role === 'admin' ? '管理员' : '普通用户' }}</ElButton>
         </template>
       </ElTableColumn>
       <ElTableColumn label="状态">
-        <template #default="{ row }: { row: AdminUser }">
-          <ElSwitch :model-value="!row.disabled" @change="toggleDisabled(row)" />
+        <template #default="{ row }">
+          <ElSwitch :model-value="!(row as AdminUser).disabled" @change="toggleDisabled(row as AdminUser)" />
         </template>
       </ElTableColumn>
       <ElTableColumn label="操作">
-        <template #default="{ row }: { row: AdminUser }">
-          <ElButton size="small" text @click="resetTargetId = row.id">重置密码</ElButton>
-          <ElButton v-if="row.totp_enabled" size="small" text @click="resetTwoFactor(row)">重置两步验证</ElButton>
-          <ElButton size="small" text type="danger" @click="removeUser(row)">删除</ElButton>
+        <template #default="{ row }">
+          <ElButton size="small" text @click="resetTargetId = (row as AdminUser).id">重置密码</ElButton>
+          <ElButton v-if="(row as AdminUser).totp_enabled" size="small" text @click="resetTwoFactor(row as AdminUser)">重置两步验证</ElButton>
+          <ElButton size="small" text type="danger" @click="removeUser(row as AdminUser)">删除</ElButton>
         </template>
       </ElTableColumn>
     </ElTable>
