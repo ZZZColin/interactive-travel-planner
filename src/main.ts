@@ -26,7 +26,6 @@ import ServerAddressGate from './components/auth/ServerAddressGate.vue'
 import { i18n, installLegacyDomLocalization } from './i18n'
 import { fetchSession, fetchServerConfig, getServerBaseUrl } from './auth/client'
 import { importServiceConfigBackup } from './config/serviceConfigBackup'
-import { hydrateTripDataFromServer } from './auth/tripSync'
 
 // 注意：这里故意不在文件顶部用静态 import 引入 './App.vue'。
 // App.vue 会连带引入 map/provider.ts，那个模块在被加载的那一刻就会立即从
@@ -107,10 +106,13 @@ async function bootstrap(): Promise<void> {
   await waitForServerAddress()
   await waitForLogin()
   await hydrateFromServer()
-  // 旅行计划数据（行程/未安排地点/预算/路线缓存）按账号同步：
-  // 和上面的服务配置同理，必须在 planner store 第一次被创建、也就是
-  // App.vue 被 import 之前，把服务器上更新的数据写进 localStorage。
-  await hydrateTripDataFromServer()
+  // 旅行计划本身（多份具名计划的列表、行程、预算等）的跨设备同步走的是
+  // plans.ts 的 syncWithServer()（对应服务器上的 synced_plans 表），在
+  // App.vue 挂载之后由 onMounted 触发，不需要像上面服务配置那样赶在
+  // App.vue 被 import 之前完成——旧版本这里还有一套更早、按整份 planner
+  // 原始状态同步的机制（trip_data 表），后来被 synced_plans 这套更完善的
+  // 方案取代，一直没清理，两套并存导致每次编辑都白白多发一次请求，现在
+  // 已经移除。
 
   const { default: App } = await import('./App.vue')
 

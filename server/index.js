@@ -78,11 +78,6 @@ db.exec(`
     data TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
-  CREATE TABLE IF NOT EXISTS trip_data (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    data TEXT NOT NULL,
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
   CREATE TABLE IF NOT EXISTS shared_plans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -424,28 +419,6 @@ app.put('/api/config', authMiddleware, (req, res) => {
     ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
   `).run(req.user.id, json)
   res.json({ ok: true })
-})
-
-// ---------------------------------------------------------------------------
-// 旅行计划数据（行程、未安排地点、预算、路线缓存等）——按账号隔开，
-// 逻辑和上面的服务配置完全一样，只是存的内容和表不同。
-// ---------------------------------------------------------------------------
-
-app.get('/api/trip-data', authMiddleware, (req, res) => {
-  const row = db.prepare('SELECT data, updated_at FROM trip_data WHERE user_id = ?').get(req.user.id)
-  if (!row) return res.json({ data: null, updatedAt: null })
-  res.json({ data: JSON.parse(row.data), updatedAt: row.updated_at })
-})
-
-app.put('/api/trip-data', authMiddleware, (req, res) => {
-  const data = req.body
-  if (!data || typeof data !== 'object') return res.status(400).json({ error: '计划数据不合法' })
-  const json = JSON.stringify(data)
-  db.prepare(`
-    INSERT INTO trip_data (user_id, data, updated_at) VALUES (?, ?, datetime('now'))
-    ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
-  `).run(req.user.id, json)
-  res.json({ ok: true, updatedAt: db.prepare('SELECT updated_at FROM trip_data WHERE user_id = ?').get(req.user.id).updated_at })
 })
 
 // ---------------------------------------------------------------------------

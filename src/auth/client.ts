@@ -146,14 +146,6 @@ export function pushServerConfig(data: unknown): Promise<void> {
   return request('/config', { method: 'PUT', body: JSON.stringify(data) })
 }
 
-export function fetchTripData(): Promise<ServerConfigResponse> {
-  return request<ServerConfigResponse>('/trip-data')
-}
-
-export function pushTripData(data: unknown): Promise<{ ok: true; updatedAt: string }> {
-  return request('/trip-data', { method: 'PUT', body: JSON.stringify(data) })
-}
-
 // ---------------------------------------------------------------------------
 // 计划分享：把某一个本地计划（PlanRecord）分享给另一个账号，
 // 可以选"只读"还是"可编辑"。

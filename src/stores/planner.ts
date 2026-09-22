@@ -8,7 +8,6 @@ import { encodeRoutePath } from '../domain/polyline'
 import { buildPlanRouteProjection, nextPlanStop, previousPlanStop } from '../domain/routeProjection'
 import { formatDuration, scheduleDay } from '../domain/schedule'
 import { routeCacheKeyIncludesPlace, transportModeMeta, transportModeOf, transportRouteCacheKey } from '../domain/transport'
-import { schedulePushTripData } from '../auth/tripSync'
 import type { AiRouteDayArrangement } from '../ai/types'
 import type { BudgetSettings, BudgetState, ExpenseItem, PersistedPlannerState, Place, PlaceCategory, OvernightMode, PlacePriority, RouteCache, RouteOption, Stop, TransportMode, TripDay } from '../domain/types'
 
@@ -760,15 +759,12 @@ export const usePlannerStore = defineStore('planner', () => {
         budget,
       }
       localStorage.setItem('interactiveTravel.continuousPlanner.v1', JSON.stringify(value))
-      // 按账号同步到服务器（防抖），这样换设备登录同一账号也能看到这份计划。
-      schedulePushTripData()
     },
     { deep: true },
   )
 
   watch(routeCache, () => {
     localStorage.setItem('interactiveTravel.continuousRoutes.v1', JSON.stringify(routeCache))
-    schedulePushTripData()
   }, { deep: true })
 
   return {
