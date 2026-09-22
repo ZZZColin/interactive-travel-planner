@@ -46,6 +46,7 @@ const effectiveDuration = computed(() => scheduledDuration.value || manualDurati
 const mode = computed<TransportMode>({
   get: () => transportModeOf(props.stop.transportMode),
   set: (value) => {
+    if (store.readOnly) return
     store.setStopTransportMode(props.stop.uid, value)
   },
 })
@@ -96,6 +97,7 @@ function routeDifference(option: RouteOption): string {
 }
 
 function chooseRoute(option: RouteOption): void {
+  if (store.readOnly) return
   store.setStopRouteOption(props.stop.uid, option, routePreference.value)
   previewRouteId.value = option.id
   routeOptionsOpen.value = false
@@ -119,6 +121,7 @@ function resetManualDraft(): void {
 }
 
 function saveManualTransport(): void {
+  if (store.readOnly) return
   if (effectiveDuration.value < 1) return
   store.setStopManualTransport(props.stop.uid, effectiveDuration.value, manualDistance.value, { transportNumber: transportNumber.value, transportFrom: transportFrom.value, transportTo: transportTo.value, transportDepartureTime: timeTextToMinutes(departureTime.value), transportArrivalTime: timeTextToMinutes(arrivalTime.value), transportAdvanceMinutes: advanceMinutes.value, transportTicketStatus: ticketStatus.value, transportTicketNote: ticketNote.value })
   manualOpen.value = false
@@ -138,7 +141,7 @@ watch(manualOpen, (open) => {
 
 <template>
   <div class="segmentline transport-segment" :class="{ bad: conflict, pending: row.route?.pending, selected: store.selectedSegmentUid === stop.uid }" :data-segment-uid="stop.uid" @click.stop="store.selectSegment(stop.uid)">
-    <ElSelect v-model="mode" size="small" class="transport-mode-select" popper-class="transport-mode-options" @click.stop>
+    <ElSelect v-model="mode" size="small" class="transport-mode-select" popper-class="transport-mode-options" :disabled="store.readOnly" @click.stop>
       <template #prefix><span class="transport-mode-glyph" :style="{ '--mode-color': meta.color }">{{ meta.glyph }}</span></template>
       <ElOption v-for="item in transportModes" :key="item" :label="transportModeMeta[item].label" :value="item">
         <div class="transport-mode-option">
@@ -158,7 +161,7 @@ watch(manualOpen, (open) => {
     </template>
 
     <span v-if="stop.selectedRoute" class="selected-route-chip" :class="{ stale: selectedRouteStale }" :title="`选择于 ${new Date(stop.selectedRoute.selectedAt).toLocaleString(currentLocale())}`">{{ stop.selectedRoute.strategyLabel }}{{ selectedRouteStale ? ' · 待刷新' : '' }}</span>
-    <ElPopover v-if="supportsRouteOptions" v-model:visible="routeOptionsOpen" placement="bottom-start" :width="430" trigger="click" popper-class="route-options-popover"><template #reference><ElButton text size="small" class="route-options-trigger" title="选择地图路线" @click.stop><i class="pi pi-directions" /><span>路线方案</span></ElButton></template><div class="route-options-panel"><header><div><strong>{{ fromName }} → {{ toName }}</strong><span>{{ meta.label }}路线方案 · 数据来自{{ mapRuntimeState.providerDefinition.name }}</span></div><ElSelect v-if="mode === 'driving' || mode === 'transit'" v-model="routePreference" size="small" class="route-preference-select"><ElOption label="综合推荐" value="recommended" /><ElOption label="用时优先" value="fastest" /><ElOption label="距离优先" value="shortest" /><ElOption label="少收费" value="least-toll" /><ElOption label="躲避拥堵" value="avoid-congestion" /></ElSelect><ElButton text size="small" :loading="routeOptionsLoading" @click="loadRouteOptions(true)"><i class="pi pi-refresh" />重新查询</ElButton></header><div v-if="routeOptionsLoading" class="route-options-loading"><span class="poi-spinner" />正在查询候选路线…</div><div v-else-if="routeOptionsError" class="route-options-error"><i class="pi pi-exclamation-circle" />{{ routeOptionsError }}</div><div v-else class="route-option-list"><button v-for="option in routeOptions" :key="option.id" type="button" :class="{ active: previewRouteId === option.id, selected: stop.selectedRoute?.id === option.id }" @mouseenter="previewRoute(option)" @focus="previewRoute(option)" @click="chooseRoute(option)"><span class="route-option-order">{{ routeOptions.indexOf(option) + 1 }}</span><span class="route-option-main"><b>{{ option.strategyLabel }}</b><small>{{ formatDuration(option.durationMinutes) }} · {{ option.distanceKm }} km<span v-if="option.toll != null"> · 高速费 ¥{{ option.toll }}</span><span v-if="option.cost != null"> · 预计 ¥{{ option.cost }}</span><span v-if="option.transferCount != null"> · 换乘 {{ option.transferCount }} 次</span><span v-if="option.walkingDistanceKm != null"> · 步行 {{ option.walkingDistanceKm }} km</span></small><small class="route-option-delta">{{ routeDifference(option) }}</small></span><span v-if="option.trafficLightCount != null" class="route-option-lights">{{ option.trafficLightCount }} 个红绿灯</span><em>{{ stop.selectedRoute?.id === option.id ? '已选择' : '使用' }}</em></button></div><footer><i class="pi pi-info-circle" />选择后会同步更新用时、里程、高速费、自驾成本和计划检查。</footer></div></ElPopover>
+    <ElPopover v-if="supportsRouteOptions" v-model:visible="routeOptionsOpen" placement="bottom-start" :width="430" trigger="click" popper-class="route-options-popover"><template #reference><ElButton text size="small" class="route-options-trigger" title="选择地图路线" :disabled="store.readOnly" @click.stop><i class="pi pi-directions" /><span>路线方案</span></ElButton></template><div class="route-options-panel"><header><div><strong>{{ fromName }} → {{ toName }}</strong><span>{{ meta.label }}路线方案 · 数据来自{{ mapRuntimeState.providerDefinition.name }}</span></div><ElSelect v-if="mode === 'driving' || mode === 'transit'" v-model="routePreference" size="small" class="route-preference-select"><ElOption label="综合推荐" value="recommended" /><ElOption label="用时优先" value="fastest" /><ElOption label="距离优先" value="shortest" /><ElOption label="少收费" value="least-toll" /><ElOption label="躲避拥堵" value="avoid-congestion" /></ElSelect><ElButton text size="small" :loading="routeOptionsLoading" @click="loadRouteOptions(true)"><i class="pi pi-refresh" />重新查询</ElButton></header><div v-if="routeOptionsLoading" class="route-options-loading"><span class="poi-spinner" />正在查询候选路线…</div><div v-else-if="routeOptionsError" class="route-options-error"><i class="pi pi-exclamation-circle" />{{ routeOptionsError }}</div><div v-else class="route-option-list"><button v-for="option in routeOptions" :key="option.id" type="button" :class="{ active: previewRouteId === option.id, selected: stop.selectedRoute?.id === option.id }" @mouseenter="previewRoute(option)" @focus="previewRoute(option)" @click="chooseRoute(option)"><span class="route-option-order">{{ routeOptions.indexOf(option) + 1 }}</span><span class="route-option-main"><b>{{ option.strategyLabel }}</b><small>{{ formatDuration(option.durationMinutes) }} · {{ option.distanceKm }} km<span v-if="option.toll != null"> · 高速费 ¥{{ option.toll }}</span><span v-if="option.cost != null"> · 预计 ¥{{ option.cost }}</span><span v-if="option.transferCount != null"> · 换乘 {{ option.transferCount }} 次</span><span v-if="option.walkingDistanceKm != null"> · 步行 {{ option.walkingDistanceKm }} km</span></small><small class="route-option-delta">{{ routeDifference(option) }}</small></span><span v-if="option.trafficLightCount != null" class="route-option-lights">{{ option.trafficLightCount }} 个红绿灯</span><em>{{ stop.selectedRoute?.id === option.id ? '已选择' : '使用' }}</em></button></div><footer><i class="pi pi-info-circle" />选择后会同步更新用时、里程、高速费、自驾成本和计划检查。</footer></div></ElPopover>
 
     <ExpenseEditorPopover owner-type="segment" :owner-id="expenseOwnerId" :title="`${fromName} → ${toName}交通费用`" :default-category="expenseCategory" :transport-mode="mode" />
 
@@ -171,7 +174,7 @@ watch(manualOpen, (open) => {
       popper-class="manual-transport-popover"
     >
       <template #reference>
-        <ElButton text circle size="small" class="transport-edit-button" :title="row.route?.pending ? '填写交通用时' : '编辑交通用时'">
+        <ElButton text circle size="small" class="transport-edit-button" :title="row.route?.pending ? '填写交通用时' : '编辑交通用时'" :disabled="store.readOnly">
           <i :class="row.route?.pending ? 'pi pi-plus' : 'pi pi-pencil'" />
         </ElButton>
       </template>
@@ -194,7 +197,7 @@ watch(manualOpen, (open) => {
         <div class="manual-transport-actions">
           <span>计划用时：{{ effectiveDuration ? formatDuration(effectiveDuration) : '尚未填写' }}</span>
           <ElButton size="small" @click="manualOpen = false">取消</ElButton>
-          <ElButton type="primary" size="small" :disabled="effectiveDuration < 1" @click="saveManualTransport">保存</ElButton>
+          <ElButton type="primary" size="small" :disabled="effectiveDuration < 1 || store.readOnly" @click="saveManualTransport">保存</ElButton>
         </div>
       </div>
     </ElPopover>

@@ -48,6 +48,7 @@ const dayRows = computed(() => store.days.map((day, dayIndex) => {
 
 function dropAtEnd(event: DragEvent, day: TripDay): void {
   event.preventDefault()
+  if (store.readOnly) return
   const payload = readDragPayload(event)
   if (!payload) return
   if (payload.type === 'pool') store.addPlace(payload.placeId, day.id, day.stops.length)
@@ -77,7 +78,7 @@ function dropAtEnd(event: DragEvent, day: TripDay): void {
           <span :class="{ bad: !item.schedule.ok }">{{ item.mixedTransport ? '交通' : '驾驶' }} {{ formatDuration(item.mixedTransport ? item.schedule.travel : item.schedule.drive) }}</span>
           <span>{{ formatTime(item.schedule.finish) }} 完成</span>
           <DayRouteOptions :day="item.day" />
-          <ElSelect v-if="item.dayIndex < store.days.length - 1" :model-value="item.day.overnightMode ?? 'auto'" size="small" class="overnight-mode-select" aria-label="当晚住宿方式" @change="store.setDayOvernightMode(item.day.id, $event)"><ElOption label="自动识别住宿" value="auto" /><ElOption label="夜间交通" value="night-transport" /><ElOption label="露营" value="camping" /><ElOption label="住亲友家" value="friends" /><ElOption label="无需住宿" value="no-lodging" /></ElSelect>
+          <ElSelect v-if="item.dayIndex < store.days.length - 1" :model-value="item.day.overnightMode ?? 'auto'" size="small" class="overnight-mode-select" aria-label="当晚住宿方式" :disabled="store.readOnly" @change="store.setDayOvernightMode(item.day.id, $event)"><ElOption label="自动识别住宿" value="auto" /><ElOption label="夜间交通" value="night-transport" /><ElOption label="露营" value="camping" /><ElOption label="住亲友家" value="friends" /><ElOption label="无需住宿" value="no-lodging" /></ElSelect>
           <span v-if="item.budget" class="day-budget-total">{{ formatMoney(item.budget) }}</span>
           <ExpenseEditorPopover owner-type="day" :owner-id="item.day.id" :title="`${item.day.label}公共费用`" default-category="lodging" />
         </div>

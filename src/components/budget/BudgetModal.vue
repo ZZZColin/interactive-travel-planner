@@ -31,6 +31,7 @@ watch(() => props.open, (open) => {
 })
 
 function saveSettings(): void {
+  if (store.readOnly) return
   store.updateBudgetSettings({ ...settings.value, contingencyRate: contingencyPercent.value / 100 })
   emit('close')
 }
@@ -95,20 +96,20 @@ function ownerLabel(ownerType: string, ownerId: string): string {
         <section v-if="activeTab === 'vehicle'" class="budget-settings-card">
           <header><div><strong>预算参数</strong><span>设置预算上限、预留比例和自驾计算依据</span></div></header>
           <div class="budget-settings-grid">
-            <label><span>预算上限（元）</span><ElInputNumber v-model="settings.limit" :min="0" :max="100000000" :precision="2" controls-position="right" placeholder="可选" /></label>
-            <label><span>应急预留比例</span><ElInputNumber v-model="contingencyPercent" :min="0" :max="100" :step="5" controls-position="right" /><small>按预计小计增加 {{ contingencyPercent }}%</small></label>
+            <label><span>预算上限（元）</span><ElInputNumber v-model="settings.limit" :min="0" :max="100000000" :precision="2" controls-position="right" placeholder="可选" :disabled="store.readOnly" /></label>
+            <label><span>应急预留比例</span><ElInputNumber v-model="contingencyPercent" :min="0" :max="100" :step="5" controls-position="right" :disabled="store.readOnly" /><small>按预计小计增加 {{ contingencyPercent }}%</small></label>
           </div>
 
           <div class="vehicle-cost-settings">
-            <div class="vehicle-cost-heading"><div><strong>自驾成本自动计算</strong><span>路线变化后油费 / 电费自动更新</span></div><ElSwitch v-model="settings.vehicle.enabled" /></div>
+            <div class="vehicle-cost-heading"><div><strong>自驾成本自动计算</strong><span>路线变化后油费 / 电费自动更新</span></div><ElSwitch v-model="settings.vehicle.enabled" :disabled="store.readOnly" /></div>
             <template v-if="settings.vehicle.enabled">
               <div class="budget-settings-grid three">
-                <label><span>能源类型</span><ElSelect v-model="settings.vehicle.energyType"><ElOption label="燃油车" value="fuel" /><ElOption label="新能源车" value="electric" /></ElSelect></label>
-                <label><span>车辆数量</span><ElInputNumber v-model="settings.vehicle.vehicleCount" :min="1" :max="20" controls-position="right" /></label>
-                <label><span>百公里{{ settings.vehicle.energyType === 'electric' ? '电耗' : '油耗' }}</span><ElInputNumber v-model="settings.vehicle.consumptionPer100Km" :min="0" :max="100" :precision="2" controls-position="right" /><small>{{ settings.vehicle.energyType === 'electric' ? 'kWh / 100km' : 'L / 100km' }}</small></label>
-                <label><span>{{ settings.vehicle.energyType === 'electric' ? '电价（元/kWh）' : '油价（元/L）' }}</span><ElInputNumber v-model="settings.vehicle.energyUnitPrice" :min="0" :max="100" :precision="2" controls-position="right" /></label>
-                <label><span>其他每公里成本</span><ElInputNumber v-model="settings.vehicle.perKmOther" :min="0" :max="100" :precision="2" controls-position="right" /><small>可用于折旧、租车里程费等</small></label>
-                <label class="vehicle-toll-switch"><span>使用地图高速费</span><ElSwitch v-model="settings.vehicle.includeMapTolls" /><small>按当前驾车路线估算</small></label>
+                <label><span>能源类型</span><ElSelect v-model="settings.vehicle.energyType" :disabled="store.readOnly"><ElOption label="燃油车" value="fuel" /><ElOption label="新能源车" value="electric" /></ElSelect></label>
+                <label><span>车辆数量</span><ElInputNumber v-model="settings.vehicle.vehicleCount" :min="1" :max="20" controls-position="right" :disabled="store.readOnly" /></label>
+                <label><span>百公里{{ settings.vehicle.energyType === 'electric' ? '电耗' : '油耗' }}</span><ElInputNumber v-model="settings.vehicle.consumptionPer100Km" :min="0" :max="100" :precision="2" controls-position="right" :disabled="store.readOnly" /><small>{{ settings.vehicle.energyType === 'electric' ? 'kWh / 100km' : 'L / 100km' }}</small></label>
+                <label><span>{{ settings.vehicle.energyType === 'electric' ? '电价（元/kWh）' : '油价（元/L）' }}</span><ElInputNumber v-model="settings.vehicle.energyUnitPrice" :min="0" :max="100" :precision="2" controls-position="right" :disabled="store.readOnly" /></label>
+                <label><span>其他每公里成本</span><ElInputNumber v-model="settings.vehicle.perKmOther" :min="0" :max="100" :precision="2" controls-position="right" :disabled="store.readOnly" /><small>可用于折旧、租车里程费等</small></label>
+                <label class="vehicle-toll-switch"><span>使用地图高速费</span><ElSwitch v-model="settings.vehicle.includeMapTolls" :disabled="store.readOnly" /><small>按当前驾车路线估算</small></label>
               </div>
             </template>
           </div>
@@ -122,7 +123,7 @@ function ownerLabel(ownerType: string, ownerId: string): string {
               <div><strong>{{ line.name }}</strong><small>{{ ownerLabel(line.ownerType, line.ownerId) }} · {{ expenseCategoryMeta[line.category].label }} · {{ line.sourceLabel || (line.source === 'manual' ? '用户录入' : line.source) }}</small></div>
               <ElTag :type="statusType(line.status)" size="small" effect="light">{{ expenseStatusMeta[line.status].label }}</ElTag>
               <b>{{ line.status === 'unknown' ? '待核价' : line.min === line.max ? formatMoney(line.expected) : `${formatMoney(line.min)}～${formatMoney(line.max)}` }}</b>
-              <ElButton v-if="line.ownerType !== 'derived'" text circle size="small" type="danger" title="删除费用" @click="store.deleteExpense(line.id)"><i class="pi pi-trash" /></ElButton>
+              <ElButton v-if="line.ownerType !== 'derived'" text circle size="small" type="danger" title="删除费用" :disabled="store.readOnly" @click="store.deleteExpense(line.id)"><i class="pi pi-trash" /></ElButton>
               <span v-else />
             </div>
           </div>
@@ -132,6 +133,6 @@ function ownerLabel(ownerType: string, ownerId: string): string {
 
     </div>
 
-    <template #footer><ElButton text @click="emit('close')">取消</ElButton><ElButton type="primary" @click="saveSettings">保存预算设置</ElButton></template>
+    <template #footer><ElButton text @click="emit('close')">取消</ElButton><ElButton type="primary" :disabled="store.readOnly" @click="saveSettings">保存预算设置</ElButton></template>
   </ElDialog>
 </template>

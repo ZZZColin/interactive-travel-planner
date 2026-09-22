@@ -19,6 +19,7 @@ const dayItems = computed(() => days.value.map((day) => ({
 
 function dropOnDay(event: DragEvent, dayId: string): void {
   event.preventDefault()
+  if (store.readOnly) return
   const payload = readDragPayload(event)
   const day = days.value.find((item) => item.id === dayId)
   if (!payload || !day) return
@@ -32,8 +33,8 @@ function dropOnDay(event: DragEvent, dayId: string): void {
 <template>
   <div class="daytabsbar">
     <div class="day-boundary-control start" title="调整开始日期">
-      <ElButton text circle size="small" title="向前增加一天" @click="emit('adjust', 'start', 'add')"><i class="pi pi-plus" /></ElButton>
-      <ElButton text circle size="small" title="移除第一天" :disabled="days.length <= 1" @click="emit('adjust', 'start', 'remove')"><i class="pi pi-minus" /></ElButton>
+      <ElButton text circle size="small" title="向前增加一天" :disabled="store.readOnly" @click="emit('adjust', 'start', 'add')"><i class="pi pi-plus" /></ElButton>
+      <ElButton text circle size="small" title="移除第一天" :disabled="days.length <= 1 || store.readOnly" @click="emit('adjust', 'start', 'remove')"><i class="pi pi-minus" /></ElButton>
     </div>
 
     <div class="daytabs">
@@ -53,8 +54,8 @@ function dropOnDay(event: DragEvent, dayId: string): void {
     </div>
 
     <div class="day-boundary-control end" title="调整结束日期">
-      <ElButton text circle size="small" title="向后增加一天" @click="emit('adjust', 'end', 'add')"><i class="pi pi-plus" /></ElButton>
-      <ElButton text circle size="small" title="移除最后一天" :disabled="days.length <= 1" @click="emit('adjust', 'end', 'remove')"><i class="pi pi-minus" /></ElButton>
+      <ElButton text circle size="small" title="向后增加一天" :disabled="store.readOnly" @click="emit('adjust', 'end', 'add')"><i class="pi pi-plus" /></ElButton>
+      <ElButton text circle size="small" title="移除最后一天" :disabled="days.length <= 1 || store.readOnly" @click="emit('adjust', 'end', 'remove')"><i class="pi pi-minus" /></ElButton>
     </div>
   </div>
 </template>

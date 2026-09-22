@@ -132,7 +132,7 @@ watch(() => props.open, (open) => {
 
     <template #footer>
       <ElButton text @click="emit('close')">返回调整</ElButton>
-      <ElButton plain type="primary" class="ai-route-check-entry" @click="emit('optimize')"><i class="pi pi-sparkles" />AI 分析路线</ElButton>
+      <ElButton plain type="primary" class="ai-route-check-entry" :disabled="store.readOnly" @click="emit('optimize')"><i class="pi pi-sparkles" />AI 分析路线</ElButton>
       <ElButton type="primary" @click="emit('close')"><i class="pi pi-check" />完成</ElButton>
     </template>
   </ElDialog>

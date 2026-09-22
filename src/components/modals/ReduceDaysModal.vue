@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ElButton, ElDialog } from 'element-plus'
+import { usePlannerStore } from '../../stores/planner'
 
 const props = defineProps<{
   open: boolean
@@ -10,6 +11,13 @@ const emit = defineEmits<{
   close: []
   choose: [strategy: 'return' | 'discard']
 }>()
+
+const planner = usePlannerStore()
+
+function choose(strategy: 'return' | 'discard'): void {
+  if (planner.readOnly) return
+  emit('choose', strategy)
+}
 </script>
 
 <template>
@@ -37,7 +45,7 @@ const emit = defineEmits<{
     </div>
 
     <div class="retention-options">
-      <button class="retention-option recommended" @click="emit('choose', 'return')">
+      <button class="retention-option recommended" :disabled="planner.readOnly" @click="choose('return')">
         <span class="retention-icon"><i class="pi pi-inbox" /></span>
         <span>
           <strong>返回未安排地点</strong>
@@ -45,7 +53,7 @@ const emit = defineEmits<{
         </span>
         <em>推荐</em>
       </button>
-      <button class="retention-option discard" @click="emit('choose', 'discard')">
+      <button class="retention-option discard" :disabled="planner.readOnly" @click="choose('discard')">
         <span class="retention-icon"><i class="pi pi-trash" /></span>
         <span>
           <strong>不保留这些地点</strong>
@@ -59,3 +67,10 @@ const emit = defineEmits<{
     </template>
   </ElDialog>
 </template>
+
+<style scoped>
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+</style>

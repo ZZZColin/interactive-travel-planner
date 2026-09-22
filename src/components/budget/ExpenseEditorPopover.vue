@@ -55,6 +55,7 @@ function newDraft(): void {
 }
 
 function edit(item: ExpenseItem): void {
+  if (store.readOnly) return
   editingId.value = item.id
   draft.value = JSON.parse(JSON.stringify(item)) as ExpenseItem
   priceMode.value = item.minAmount != null || item.maxAmount != null ? 'range' : 'fixed'
@@ -77,6 +78,7 @@ function inlineValue(item: ExpenseItem, field: 'amount' | 'minAmount' | 'maxAmou
 }
 
 function persistInlineAmount(item: ExpenseItem): void {
+  if (store.readOnly) return
   const values = inlineDrafts.value[item.id]
   if (!values) return
   const next = JSON.parse(JSON.stringify(item)) as ExpenseItem
@@ -110,6 +112,7 @@ function flushInlineAmount(item: ExpenseItem): void {
 }
 
 function updateInlineAmount(item: ExpenseItem, field: 'amount' | 'minAmount' | 'maxAmount', value: number | null | undefined): void {
+  if (store.readOnly) return
   const current = inlineDrafts.value[item.id] ?? { amount: itemAmount(item), minAmount: item.minAmount, maxAmount: item.maxAmount }
   inlineDrafts.value[item.id] = { ...current, [field]: value ?? null }
   const existing = inlineSaveTimers.get(item.id)
@@ -136,6 +139,7 @@ function localDateKey(): string {
 }
 
 function save(): void {
+  if (store.readOnly) return
   error.value = ''
   const item = { ...draft.value, name: draft.value.name.trim(), transportMode: props.transportMode ?? draft.value.transportMode }
   if (!item.name) { error.value = '请填写费用名称'; return }
@@ -185,13 +189,13 @@ onBeforeUnmount(() => [...pendingInlineItems.values()].forEach((item) => flushIn
             <div v-for="item in items" :key="item.id" class="expense-hover-row always-editable" :class="{ range: item.minAmount != null || item.maxAmount != null, invalid: inlineRangeInvalid(item) }">
               <span><b>{{ item.name }}</b><small>{{ expenseStatusMeta[item.status].label }} · {{ item.sourceLabel || '用户录入' }}</small></span>
               <div v-if="item.minAmount != null || item.maxAmount != null" class="expense-inline-range" @click.stop @mousedown.stop>
-                <ElInputNumber :model-value="inlineValue(item, 'minAmount')" aria-label="最低总价" :min="0" :max="10000000" :precision="2" :controls="false" placeholder="最低" @update:model-value="updateInlineAmount(item, 'minAmount', $event)" @blur="flushInlineAmount(item)" />
+                <ElInputNumber :model-value="inlineValue(item, 'minAmount')" aria-label="最低总价" :min="0" :max="10000000" :precision="2" :controls="false" placeholder="最低" :disabled="store.readOnly" @update:model-value="updateInlineAmount(item, 'minAmount', $event)" @blur="flushInlineAmount(item)" />
                 <span>—</span>
-                <ElInputNumber :model-value="inlineValue(item, 'maxAmount')" aria-label="最高总价" :min="0" :max="10000000" :precision="2" :controls="false" placeholder="最高" @update:model-value="updateInlineAmount(item, 'maxAmount', $event)" @blur="flushInlineAmount(item)" />
+                <ElInputNumber :model-value="inlineValue(item, 'maxAmount')" aria-label="最高总价" :min="0" :max="10000000" :precision="2" :controls="false" placeholder="最高" :disabled="store.readOnly" @update:model-value="updateInlineAmount(item, 'maxAmount', $event)" @blur="flushInlineAmount(item)" />
               </div>
               <div v-else class="expense-inline-money" title="编辑合计金额；保存后会按照当前数量自动换算单价" @click.stop @mousedown.stop>
                 <span>¥</span>
-                <ElInputNumber :model-value="inlineValue(item, 'amount')" class="expense-inline-amount" :aria-label="`${item.name}费用金额`" :min="0" :max="10000000" :precision="2" :controls="false" placeholder="待核价" @update:model-value="updateInlineAmount(item, 'amount', $event)" @blur="flushInlineAmount(item)" />
+                <ElInputNumber :model-value="inlineValue(item, 'amount')" class="expense-inline-amount" :aria-label="`${item.name}费用金额`" :min="0" :max="10000000" :precision="2" :controls="false" placeholder="待核价" :disabled="store.readOnly" @update:model-value="updateInlineAmount(item, 'amount', $event)" @blur="flushInlineAmount(item)" />
               </div>
             </div>
             <div v-for="line in automaticLines" :key="line.id" class="expense-hover-row automatic">
@@ -212,8 +216,8 @@ onBeforeUnmount(() => [...pendingInlineItems.values()].forEach((item) => flushIn
           <div><b>{{ item.name }}</b><small>{{ item.quantity }} {{ billingUnitLabels[item.billingUnit] }} · {{ item.sourceLabel || (item.source === 'manual' ? '用户录入' : item.source) }}{{ item.quotedAt ? ` · ${item.quotedAt} 核价` : '' }}</small></div>
           <ElTag :type="statusType(item.status)" size="small" effect="light">{{ expenseStatusMeta[item.status].label }}</ElTag>
           <strong>{{ itemAmount(item) == null ? '待核价' : formatMoney(itemAmount(item)!) }}</strong>
-          <ElButton text circle size="small" title="编辑费用" @click="edit(item)"><i class="pi pi-pencil" /></ElButton>
-          <ElButton text circle size="small" type="danger" title="删除费用" @click="store.deleteExpense(item.id)"><i class="pi pi-trash" /></ElButton>
+          <ElButton text circle size="small" title="编辑费用" :disabled="store.readOnly" @click="edit(item)"><i class="pi pi-pencil" /></ElButton>
+          <ElButton text circle size="small" type="danger" title="删除费用" :disabled="store.readOnly" @click="store.deleteExpense(item.id)"><i class="pi pi-trash" /></ElButton>
         </div>
       </div>
       <div v-if="automaticLines.length" class="expense-auto-list">
@@ -222,23 +226,23 @@ onBeforeUnmount(() => [...pendingInlineItems.values()].forEach((item) => flushIn
 
       <div class="expense-form">
         <div class="expense-form-grid">
-          <label><span>费用类别</span><ElSelect :model-value="draft.category" :teleported="false" @change="changeCategory"><ElOption v-for="category in categories" :key="category" :label="expenseCategoryMeta[category].label" :value="category" /></ElSelect></label>
-          <label><span>费用名称</span><ElInput v-model="draft.name" /></label>
+          <label><span>费用类别</span><ElSelect :model-value="draft.category" :teleported="false" :disabled="store.readOnly" @change="changeCategory"><ElOption v-for="category in categories" :key="category" :label="expenseCategoryMeta[category].label" :value="category" /></ElSelect></label>
+          <label><span>费用名称</span><ElInput v-model="draft.name" :disabled="store.readOnly" /></label>
         </div>
         <div class="expense-form-grid three">
-          <label><span>状态</span><ElSelect v-model="draft.status" :teleported="false"><ElOption v-for="status in statuses" :key="status" :label="expenseStatusMeta[status].label" :value="status" /></ElSelect></label>
-          <label><span>数量</span><ElInputNumber v-model="draft.quantity" :min="0" :max="9999" :step="1" controls-position="right" /></label>
-          <label><span>计费单位</span><ElSelect v-model="draft.billingUnit" :teleported="false"><ElOption v-for="unit in units" :key="unit" :label="billingUnitLabels[unit]" :value="unit" /></ElSelect></label>
+          <label><span>状态</span><ElSelect v-model="draft.status" :teleported="false" :disabled="store.readOnly"><ElOption v-for="status in statuses" :key="status" :label="expenseStatusMeta[status].label" :value="status" /></ElSelect></label>
+          <label><span>数量</span><ElInputNumber v-model="draft.quantity" :min="0" :max="9999" :step="1" controls-position="right" :disabled="store.readOnly" /></label>
+          <label><span>计费单位</span><ElSelect v-model="draft.billingUnit" :teleported="false" :disabled="store.readOnly"><ElOption v-for="unit in units" :key="unit" :label="billingUnitLabels[unit]" :value="unit" /></ElSelect></label>
         </div>
         <template v-if="draft.status !== 'free' && draft.status !== 'unknown'">
-          <ElRadioGroup v-model="priceMode" size="small"><ElRadioButton value="fixed">固定单价</ElRadioButton><ElRadioButton value="range">总价区间</ElRadioButton></ElRadioGroup>
-          <label v-if="priceMode === 'fixed'"><span>单价（元）</span><ElInputNumber v-model="draft.unitPrice" :min="0" :max="10000000" :precision="2" controls-position="right" /></label>
-          <div v-else class="expense-form-grid"><label><span>最低总价（元）</span><ElInputNumber v-model="draft.minAmount" :min="0" :max="10000000" :precision="2" controls-position="right" /></label><label><span>最高总价（元）</span><ElInputNumber v-model="draft.maxAmount" :min="0" :max="10000000" :precision="2" controls-position="right" /></label></div>
+          <ElRadioGroup v-model="priceMode" size="small" :disabled="store.readOnly"><ElRadioButton value="fixed">固定单价</ElRadioButton><ElRadioButton value="range">总价区间</ElRadioButton></ElRadioGroup>
+          <label v-if="priceMode === 'fixed'"><span>单价（元）</span><ElInputNumber v-model="draft.unitPrice" :min="0" :max="10000000" :precision="2" controls-position="right" :disabled="store.readOnly" /></label>
+          <div v-else class="expense-form-grid"><label><span>最低总价（元）</span><ElInputNumber v-model="draft.minAmount" :min="0" :max="10000000" :precision="2" controls-position="right" :disabled="store.readOnly" /></label><label><span>最高总价（元）</span><ElInputNumber v-model="draft.maxAmount" :min="0" :max="10000000" :precision="2" controls-position="right" :disabled="store.readOnly" /></label></div>
         </template>
-        <div class="expense-form-grid"><label><span>价格来源</span><ElInput v-model="draft.sourceLabel" placeholder="官方公众号、订单或报价平台" /></label><label><span>核价日期</span><ElDatePicker v-model="draft.quotedAt" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :teleported="false" clearable /></label></div>
-        <label><span>备注 / 核价依据</span><ElInput v-model="draft.note" placeholder="例如：含摆渡车，不含索道；出发前需复核" /></label>
+        <div class="expense-form-grid"><label><span>价格来源</span><ElInput v-model="draft.sourceLabel" placeholder="官方公众号、订单或报价平台" :disabled="store.readOnly" /></label><label><span>核价日期</span><ElDatePicker v-model="draft.quotedAt" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :teleported="false" clearable :disabled="store.readOnly" /></label></div>
+        <label><span>备注 / 核价依据</span><ElInput v-model="draft.note" placeholder="例如：含摆渡车，不含索道；出发前需复核" :disabled="store.readOnly" /></label>
         <div v-if="error" class="expense-form-error"><i class="pi pi-exclamation-circle" />{{ error }}</div>
-        <div class="expense-form-actions"><span>{{ editingId ? '正在编辑已有费用' : '新增费用项目' }}</span><ElButton type="primary" size="small" @click="save">{{ editingId ? '保存修改' : '添加费用' }}</ElButton></div>
+        <div class="expense-form-actions"><span>{{ editingId ? '正在编辑已有费用' : '新增费用项目' }}</span><ElButton type="primary" size="small" :disabled="store.readOnly" @click="save">{{ editingId ? '保存修改' : '添加费用' }}</ElButton></div>
       </div>
     </div>
   </ElPopover>

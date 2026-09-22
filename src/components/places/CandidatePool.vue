@@ -182,12 +182,14 @@ function focusPlaceOnMap(placeId: string): void {
 }
 
 function addResult(place: PoiSearchResult): void {
+  if (store.readOnly) return
   store.addCustomPlace(place)
   query.value = ''
   results.value = []
 }
 
 function startDrag(event: DragEvent, placeId: string): void {
+  if (store.readOnly) { event.preventDefault(); return }
   draggingPlaceId.value = placeId
   writeDragPayload(event, { type: 'pool', placeId })
 }
@@ -211,6 +213,7 @@ function onCandidateDragOver(event: DragEvent, targetPlaceId: string): void {
 function onCandidateDrop(event: DragEvent, targetPlaceId: string): void {
   event.preventDefault()
   event.stopPropagation()
+  if (store.readOnly) { finishDrag(); return }
   const payload = readDragPayload(event)
   if (payload?.type === 'stop') {
     store.removeStop(payload.uid)
@@ -222,6 +225,7 @@ function onCandidateDrop(event: DragEvent, targetPlaceId: string): void {
 
 function dropToPool(event: DragEvent): void {
   event.preventDefault()
+  if (store.readOnly) { finishDrag(); return }
   const payload = readDragPayload(event)
   if (payload?.type === 'stop') store.removeStop(payload.uid)
   finishDrag()
@@ -278,7 +282,7 @@ onBeforeUnmount(() => {
         @confirm="store.clearCandidatePlaces()"
       >
         <template #reference>
-          <ElButton text circle size="small" type="danger" class="pool-clear-button" title="一键清空未安排地点" @click.stop><i class="pi pi-trash" /></ElButton>
+          <ElButton text circle size="small" type="danger" class="pool-clear-button" title="一键清空未安排地点" :disabled="store.readOnly" @click.stop><i class="pi pi-trash" /></ElButton>
         </template>
       </ElPopconfirm>
       <ElButtonGroup v-if="candidates.length" class="pool-view-switch" @click.stop>
@@ -313,8 +317,8 @@ onBeforeUnmount(() => {
           @keydown="onKeydown"
         >
       </label>
-      <ElButton text size="small" class="ai-import-entry" @click="emit('aiImport')"><i class="pi pi-sparkles" />AI 识别</ElButton>
-      <ElButton text size="small" class="batchbtn" @click="emit('batch')"><i class="pi pi-copy" />批量粘贴</ElButton>
+      <ElButton text size="small" class="ai-import-entry" :disabled="store.readOnly" @click="emit('aiImport')"><i class="pi pi-sparkles" />AI 识别</ElButton>
+      <ElButton text size="small" class="batchbtn" :disabled="store.readOnly" @click="emit('batch')"><i class="pi pi-copy" />批量粘贴</ElButton>
     </div>
 
     <div v-if="candidates.length" class="pool-guidance">
@@ -338,7 +342,7 @@ onBeforeUnmount(() => {
           <b>{{ mapRuntimeState.providerDefinition.name }}地点搜索</b>
           <span>{{ results.length }} 个结果 · 点击加入地点池</span>
         </div>
-        <button v-for="place in results" :key="place.id" class="poi-result" @click="addResult(place)">
+        <button v-for="place in results" :key="place.id" class="poi-result" :disabled="store.readOnly" @click="addResult(place)">
           <CategoryIcon :category="place.category" />
           <span class="poi-result-main">
             <b>{{ place.name }}</b>
@@ -363,7 +367,7 @@ onBeforeUnmount(() => {
           'pool-drop-after': dropTargetId === place.id && dropPosition === 'after',
         }"
         :data-place="place.id"
-        draggable="true"
+        :draggable="!store.readOnly"
         @dragstart="startDrag($event, place.id)"
         @dragend="finishDrag"
         @dragover="onCandidateDragOver($event, place.id)"
@@ -372,7 +376,7 @@ onBeforeUnmount(() => {
         @click="store.selectPlace(place.id)"
       >
         <div class="poolcard-actions" @click.stop @mousedown.stop>
-          <ElButton text circle size="small" class="addmini" title="加入当前日期" @click="store.addPlace(place.id)"><i class="pi pi-plus" /></ElButton>
+          <ElButton text circle size="small" class="addmini" title="加入当前日期" :disabled="store.readOnly" @click="store.addPlace(place.id)"><i class="pi pi-plus" /></ElButton>
           <ElPopconfirm
             :title="`从未安排地点中删除“${place.name}”？`"
             width="230"
@@ -382,7 +386,7 @@ onBeforeUnmount(() => {
             @confirm="store.deleteCandidatePlace(place.id)"
           >
             <template #reference>
-              <ElButton text circle size="small" type="danger" class="deletemini" title="删除未安排地点"><i class="pi pi-trash" /></ElButton>
+              <ElButton text circle size="small" type="danger" class="deletemini" title="删除未安排地点" :disabled="store.readOnly"><i class="pi pi-trash" /></ElButton>
             </template>
           </ElPopconfirm>
         </div>

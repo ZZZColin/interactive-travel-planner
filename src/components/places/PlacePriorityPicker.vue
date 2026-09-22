@@ -2,9 +2,12 @@
 import { computed } from 'vue'
 import { ElDropdown, ElDropdownItem, ElDropdownMenu } from 'element-plus'
 import type { PlacePriority } from '../../domain/types'
+import { usePlannerStore } from '../../stores/planner'
 
 const props = defineProps<{ modelValue: PlacePriority }>()
 const emit = defineEmits<{ change: [priority: PlacePriority] }>()
+
+const store = usePlannerStore()
 
 const options: Array<{ value: PlacePriority; label: string; description: string }> = [
   { value: 'must', label: '必去', description: '未安排时会在计划检查中提醒' },
@@ -14,6 +17,7 @@ const options: Array<{ value: PlacePriority; label: string; description: string 
 const current = computed(() => options.find((item) => item.value === props.modelValue) ?? options[1])
 
 function selectPriority(priority: PlacePriority): void {
+  if (store.readOnly) return
   if (priority !== props.modelValue) emit('change', priority)
 }
 </script>
@@ -27,6 +31,7 @@ function selectPriority(priority: PlacePriority): void {
       :aria-label="`地点优先级：${current.label}，点击调整`"
       title="调整地点优先级"
       draggable="false"
+      :disabled="store.readOnly"
       @click.stop
       @mousedown.stop
       @dragstart.prevent
@@ -51,3 +56,10 @@ function selectPriority(priority: PlacePriority): void {
     </template>
   </ElDropdown>
 </template>
+
+<style scoped>
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+</style>

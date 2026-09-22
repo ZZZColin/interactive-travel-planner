@@ -64,6 +64,7 @@ function focusPlaceOnMap(): void {
 }
 
 function onDragStart(event: DragEvent): void {
+  if (store.readOnly) { event.preventDefault(); return }
   dragging.value = true
   writeDragPayload(event, { type: 'stop', uid: props.stop.uid })
 }
@@ -78,6 +79,7 @@ function onDragOver(event: DragEvent): void {
 function onDrop(event: DragEvent): void {
   event.preventDefault()
   event.stopPropagation()
+  if (store.readOnly) return
   const payload = readDragPayload(event)
   if (!payload) return
   const targetIndex = props.index + (dropPosition.value === 'after' ? 1 : 0)
@@ -170,12 +172,13 @@ onBeforeUnmount(() => window.clearTimeout(editingReleaseTimer))
           selected: store.selectedPlaceId === stop.placeId,
           dragging,
           conflict: row.conflict,
+          'read-only': store.readOnly,
         },
         weather?.kind ? `weather-${weather.kind}` : '',
         riskSeverity ? `risk-${riskSeverity}` : '',
       ]"
       :data-place="stop.placeId"
-      draggable="true"
+      :draggable="!store.readOnly"
       @dragstart="onDragStart"
       @dragend="dragging = false"
       @click="store.selectPlace(stop.placeId)"
@@ -200,6 +203,7 @@ onBeforeUnmount(() => window.clearTimeout(editingReleaseTimer))
               :class="{ conflict: row.conflict }"
               format="HH:mm"
               :clearable="false"
+              :disabled="store.readOnly"
               @focus="beginTimeEdit('arrival')"
               @change="updateTime('arrival', $event)"
               @blur="updateTimeFromInput('arrival', $event)"
@@ -214,6 +218,7 @@ onBeforeUnmount(() => window.clearTimeout(editingReleaseTimer))
               :class="{ conflict: row.conflict }"
               format="HH:mm"
               :clearable="false"
+              :disabled="store.readOnly"
               @focus="beginTimeEdit('departure')"
               @change="updateTime('departure', $event)"
               @blur="updateTimeFromInput('departure', $event)"
@@ -228,6 +233,7 @@ onBeforeUnmount(() => window.clearTimeout(editingReleaseTimer))
             size="small"
             class="reset-time-button"
             title="恢复自动推导时间"
+            :disabled="store.readOnly"
             @click.stop="store.resetStopTimes(stop.uid)"
           ><i class="pi pi-refresh" /></ElButton>
         </div>
@@ -241,7 +247,7 @@ onBeforeUnmount(() => window.clearTimeout(editingReleaseTimer))
       <div class="stopactions">
         <WeatherBadge v-if="weather" :weather="weather" />
         <RiskBadge v-if="risks.length" :risks="risks" />
-        <ElButton text circle size="small" type="danger" class="minibtn" title="移回地点池" @click.stop="store.removeStop(stop.uid)"><i class="pi pi-times" /></ElButton>
+        <ElButton text circle size="small" type="danger" class="minibtn" title="移回地点池" :disabled="store.readOnly" @click.stop="store.removeStop(stop.uid)"><i class="pi pi-times" /></ElButton>
       </div>
     </div>
     <div v-if="row.route" class="segment">
@@ -256,3 +262,13 @@ onBeforeUnmount(() => window.clearTimeout(editingReleaseTimer))
     <div class="dropmarker after" />
   </div>
 </template>
+
+<style scoped>
+.stopcard.read-only {
+  cursor: default;
+}
+.stopcard.read-only .draghandle {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+</style>

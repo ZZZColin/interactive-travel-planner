@@ -13,6 +13,7 @@ watch(() => props.open, (open) => {
 })
 
 function confirm(): void {
+  if (store.readOnly) return
   const names = value.value.split(/\n|,|，/).map((item) => item.trim()).filter(Boolean)
   store.batchAddNames(names)
   emit('close')
@@ -30,10 +31,10 @@ function confirm(): void {
     @update:model-value="!$event && emit('close')"
   >
     <p class="dialog-description">一行一个地点。系统会与当前地点库匹配，不进行攻略内容解析。</p>
-    <ElInput v-model="value" type="textarea" :autosize="{ minRows: 7, maxRows: 10 }" resize="none" />
+    <ElInput v-model="value" type="textarea" :autosize="{ minRows: 7, maxRows: 10 }" resize="none" :disabled="store.readOnly" />
     <template #footer>
       <ElButton text @click="emit('close')">取消</ElButton>
-      <ElButton type="primary" @click="confirm"><i class="pi pi-check" />确认匹配并加入</ElButton>
+      <ElButton type="primary" :disabled="store.readOnly" @click="confirm"><i class="pi pi-check" />确认匹配并加入</ElButton>
     </template>
   </ElDialog>
 </template>

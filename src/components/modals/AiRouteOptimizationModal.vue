@@ -136,7 +136,7 @@ function cancelAnalysis(): void {
 }
 
 function apply(): void {
-  if (!draft.value || !validation.value || !changed.value) return
+  if (!draft.value || !validation.value || !changed.value || planner.readOnly) return
   planner.applyAiRouteArrangement(draft.value.dayArrangements, draft.value.returnToPoolStopUids, validation.value.routeCache)
   emit('close')
 }
@@ -193,7 +193,7 @@ function issueTagType(severity: string): 'info' | 'warning' | 'danger' {
 
     <template #footer>
       <ElButton text @click="emit('close')">取消</ElButton>
-      <ElButton v-if="draft && validation" type="primary" :disabled="!changed || validation.estimatedSegments > 0" :title="validation.estimatedSegments ? `存在未通过${mapRuntimeState.providerDefinition.shortName}验证的新路段，暂不能应用` : ''" @click="apply"><i class="pi pi-check" />{{ !changed ? '当前无需调整' : validation.estimatedSegments ? '路线验证不完整' : '确认并应用调整' }}</ElButton>
+      <ElButton v-if="draft && validation" type="primary" :disabled="!changed || validation.estimatedSegments > 0 || planner.readOnly" :title="validation.estimatedSegments ? `存在未通过${mapRuntimeState.providerDefinition.shortName}验证的新路段，暂不能应用` : ''" @click="apply"><i class="pi pi-check" />{{ !changed ? '当前无需调整' : validation.estimatedSegments ? '路线验证不完整' : '确认并应用调整' }}</ElButton>
     </template>
   </ElDialog>
 </template>

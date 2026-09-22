@@ -26,6 +26,7 @@ import ServerAddressGate from './components/auth/ServerAddressGate.vue'
 import { i18n, installLegacyDomLocalization } from './i18n'
 import { fetchSession, fetchServerConfig, getServerBaseUrl } from './auth/client'
 import { importServiceConfigBackup } from './config/serviceConfigBackup'
+import { hydrateTripDataFromServer } from './auth/tripSync'
 
 // 注意：这里故意不在文件顶部用静态 import 引入 './App.vue'。
 // App.vue 会连带引入 map/provider.ts，那个模块在被加载的那一刻就会立即从
@@ -106,6 +107,10 @@ async function bootstrap(): Promise<void> {
   await waitForServerAddress()
   await waitForLogin()
   await hydrateFromServer()
+  // 旅行计划数据（行程/未安排地点/预算/路线缓存）按账号同步：
+  // 和上面的服务配置同理，必须在 planner store 第一次被创建、也就是
+  // App.vue 被 import 之前，把服务器上更新的数据写进 localStorage。
+  await hydrateTripDataFromServer()
 
   const { default: App } = await import('./App.vue')
 

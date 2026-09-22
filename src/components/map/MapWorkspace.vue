@@ -162,6 +162,7 @@ watch(() => selectedPlace.value?.id, () => {
 })
 
 function savePlacePlanningInfo(): void {
+  if (store.readOnly) return
   if (!selectedPlace.value) return
   store.updatePlacePlanningInfo(selectedPlace.value.id, placeNoteDraft.value, placeAltitudeDraft.value, { openingTime: dateToMinutes(openingTimeDraft.value), lastEntryTime: dateToMinutes(lastEntryTimeDraft.value), closingTime: dateToMinutes(closingTimeDraft.value), reservationRequired: reservationRequiredDraft.value, reservationStatus: reservationStatusDraft.value, reservationNote: reservationNoteDraft.value })
   planningInfoOpen.value = false
@@ -382,6 +383,7 @@ function clearMapSearch(): void {
 }
 
 function addMapSearchResult(place: PoiSearchResult, target: 'day' | 'pool'): void {
+  if (store.readOnly) return
   store.addPickedPlace(place, target === 'day' ? store.selectedDayId : null)
   planMapProvider.focusPlace(place)
   clearMapSearch()
@@ -481,7 +483,7 @@ function selectCategory(category: PlaceCategory | 'all'): void {
 }
 
 function togglePickMode(): void {
-  if (!configured.value || mapBusy.value || error.value) return
+  if (!configured.value || mapBusy.value || error.value || store.readOnly) return
   pickMode.value = !pickMode.value
   pickLoading.value = false
   pickResult.value = null
@@ -516,6 +518,7 @@ function buildPickedPlace(): Place | null {
 }
 
 function addPickedPlace(targetDayId: string | null): void {
+  if (store.readOnly) return
   const place = buildPickedPlace()
   if (!place) return
   store.addPickedPlace(place, targetDayId)
@@ -577,6 +580,7 @@ function useNearbyPreset(keyword: string): void {
 }
 
 function addNearbyPlace(place: PoiSearchResult, targetDayId: string | null): void {
+  if (store.readOnly) return
   const { distanceMeters: _distanceMeters, ...savedPlace } = place
   store.addPickedPlace(savedPlace, targetDayId, false)
 }
@@ -635,8 +639,8 @@ async function locateCurrentPosition(): Promise<void> {
                 <CategoryIcon :category="place.category" />
                 <span><b>{{ place.name }}</b><small>{{ place.address || place.type }}</small></span>
                 <div class="map-search-result-actions">
-                  <button type="button" class="secondary" @click="addMapSearchResult(place, 'pool')">加入未安排</button>
-                  <button type="button" class="primary" @click="addMapSearchResult(place, 'day')">加入当天</button>
+                  <button type="button" class="secondary" :disabled="store.readOnly" @click="addMapSearchResult(place, 'pool')">加入未安排</button>
+                  <button type="button" class="primary" :disabled="store.readOnly" @click="addMapSearchResult(place, 'day')">加入当天</button>
                 </div>
               </div>
             </template>
@@ -662,7 +666,7 @@ async function locateCurrentPosition(): Promise<void> {
         <button
           class="map-pick-button"
           :class="{ active: pickMode }"
-          :disabled="!configured || mapBusy || Boolean(error)"
+          :disabled="!configured || mapBusy || Boolean(error) || store.readOnly"
           title="从地图拾取地点"
           aria-label="从地图拾取地点"
           @click="togglePickMode"
@@ -747,7 +751,7 @@ async function locateCurrentPosition(): Promise<void> {
           </ElSelect></label>
           <label><span>地点名称</span><ElInput v-model="pickName" maxlength="60" /></label>
         </div>
-        <div class="map-pick-actions"><ElButton @click="addPickedPlace(null)">加入未安排地点</ElButton><ElButton type="primary" @click="addPickedPlace(store.selectedDayId)">加入 {{ store.selectedDay.label }}</ElButton></div>
+        <div class="map-pick-actions"><ElButton :disabled="store.readOnly" @click="addPickedPlace(null)">加入未安排地点</ElButton><ElButton type="primary" :disabled="store.readOnly" @click="addPickedPlace(store.selectedDayId)">加入 {{ store.selectedDay.label }}</ElButton></div>
       </div>
     </div>
 
@@ -771,7 +775,7 @@ async function locateCurrentPosition(): Promise<void> {
       </p>
       <div class="map-place-card-actions">
         <button v-if="selectedPlaceStop" class="ghostbtn" @click="store.selectDay(selectedPlaceStop.day.id)">查看 {{ selectedPlaceStop.day.label }}</button>
-        <button class="primarybtn" @click="store.addPlace(selectedPlace.id)">{{ selectedPlaceStop ? `再次加入 ${store.selectedDay.label}` : `加入 ${store.selectedDay.label}` }}</button>
+        <button class="primarybtn" :disabled="store.readOnly" @click="store.addPlace(selectedPlace.id)">{{ selectedPlaceStop ? `再次加入 ${store.selectedDay.label}` : `加入 ${store.selectedDay.label}` }}</button>
         <button class="ghostbtn nearby-search-trigger" :class="{ active: nearbyOpen }" @click="toggleNearbySearch"><i class="pi pi-search" />搜周边</button>
         <button class="ghostbtn" @click="store.selectPlace(null)">关闭</button>
       </div>
@@ -796,17 +800,17 @@ async function locateCurrentPosition(): Promise<void> {
             <CategoryIcon :category="place.category" />
             <div class="nearby-result-main"><b>{{ place.name }}</b><small><span v-if="place.distanceMeters != null">{{ nearbyDistanceText(place) }} · </span>{{ place.address || place.type }}</small></div>
             <div class="nearby-result-actions">
-              <ElButton text size="small" :disabled="nearbyAlreadyCollected(place)" @click="addNearbyPlace(place, null)">{{ nearbyAlreadyCollected(place) ? '已收集' : '未安排' }}</ElButton>
-              <ElButton type="primary" plain size="small" :disabled="nearbyAlreadyInSelectedDay(place)" @click="addNearbyPlace(place, store.selectedDayId)">{{ nearbyAlreadyInSelectedDay(place) ? `已在 ${store.selectedDay.label}` : `加入 ${store.selectedDay.label}` }}</ElButton>
+              <ElButton text size="small" :disabled="nearbyAlreadyCollected(place) || store.readOnly" @click="addNearbyPlace(place, null)">{{ nearbyAlreadyCollected(place) ? '已收集' : '未安排' }}</ElButton>
+              <ElButton type="primary" plain size="small" :disabled="nearbyAlreadyInSelectedDay(place) || store.readOnly" @click="addNearbyPlace(place, store.selectedDayId)">{{ nearbyAlreadyInSelectedDay(place) ? `已在 ${store.selectedDay.label}` : `加入 ${store.selectedDay.label}` }}</ElButton>
             </div>
           </article>
         </div>
       </section>
 
       <section class="map-place-personal">
-        <header><div><h4>我的规划信息</h4><span v-if="selectedPlace.altitude != null">海拔 {{ selectedPlace.altitude.toLocaleString(currentLocale()) }} m</span></div><button @click="planningInfoOpen = !planningInfoOpen"><i class="pi pi-pencil" />{{ planningInfoOpen ? '收起' : selectedPlace.userNote || selectedPlace.altitude != null ? '编辑' : '添加' }}</button></header>
+        <header><div><h4>我的规划信息</h4><span v-if="selectedPlace.altitude != null">海拔 {{ selectedPlace.altitude.toLocaleString(currentLocale()) }} m</span></div><button :disabled="store.readOnly" @click="planningInfoOpen = !planningInfoOpen"><i class="pi pi-pencil" />{{ planningInfoOpen ? '收起' : selectedPlace.userNote || selectedPlace.altitude != null ? '编辑' : '添加' }}</button></header>
         <p v-if="selectedPlace.userNote && !planningInfoOpen">{{ selectedPlace.userNote }}</p>
-        <div v-if="planningInfoOpen" class="map-place-personal-form"><label><span>我的备注</span><ElInput v-model="placeNoteDraft" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="预约、停车、必看项目或同行人偏好" /></label><label><span>海拔（米）</span><ElInputNumber v-model="placeAltitudeDraft" :min="-500" :max="9000" :step="100" controls-position="right" placeholder="未知" /></label><div class="place-visit-times"><label><span>开放时间</span><ElTimePicker v-model="openingTimeDraft" format="HH:mm" clearable /></label><label><span>最晚入场</span><ElTimePicker v-model="lastEntryTimeDraft" format="HH:mm" clearable /></label><label><span>关闭时间</span><ElTimePicker v-model="closingTimeDraft" format="HH:mm" clearable /></label></div><div class="place-reservation-row"><span><b>需要预约</b><small>计划检查会提醒未预约地点</small></span><ElSwitch v-model="reservationRequiredDraft" /></div><div v-if="reservationRequiredDraft" class="place-reservation-fields"><label><span>预约状态</span><ElSelect v-model="reservationStatusDraft"><ElOption label="未处理" value="none" /><ElOption label="待预约" value="pending" /><ElOption label="已预约" value="booked" /><ElOption label="已购票" value="ticketed" /></ElSelect></label><label><span>预约 / 订单备注</span><ElInput v-model="reservationNoteDraft" placeholder="订单号、预约平台或取消规则" /></label></div><div><ElButton size="small" @click="planningInfoOpen = false">取消</ElButton><ElButton type="primary" size="small" @click="savePlacePlanningInfo">保存</ElButton></div></div>
+        <div v-if="planningInfoOpen" class="map-place-personal-form"><label><span>我的备注</span><ElInput v-model="placeNoteDraft" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="预约、停车、必看项目或同行人偏好" /></label><label><span>海拔（米）</span><ElInputNumber v-model="placeAltitudeDraft" :min="-500" :max="9000" :step="100" controls-position="right" placeholder="未知" /></label><div class="place-visit-times"><label><span>开放时间</span><ElTimePicker v-model="openingTimeDraft" format="HH:mm" clearable /></label><label><span>最晚入场</span><ElTimePicker v-model="lastEntryTimeDraft" format="HH:mm" clearable /></label><label><span>关闭时间</span><ElTimePicker v-model="closingTimeDraft" format="HH:mm" clearable /></label></div><div class="place-reservation-row"><span><b>需要预约</b><small>计划检查会提醒未预约地点</small></span><ElSwitch v-model="reservationRequiredDraft" /></div><div v-if="reservationRequiredDraft" class="place-reservation-fields"><label><span>预约状态</span><ElSelect v-model="reservationStatusDraft"><ElOption label="未处理" value="none" /><ElOption label="待预约" value="pending" /><ElOption label="已预约" value="booked" /><ElOption label="已购票" value="ticketed" /></ElSelect></label><label><span>预约 / 订单备注</span><ElInput v-model="reservationNoteDraft" placeholder="订单号、预约平台或取消规则" /></label></div><div><ElButton size="small" @click="planningInfoOpen = false">取消</ElButton><ElButton type="primary" size="small" :disabled="store.readOnly" @click="savePlacePlanningInfo">保存</ElButton></div></div>
         <small v-else-if="!selectedPlace.userNote && selectedPlace.altitude == null">可补充个人备注和可靠海拔；不会由 AI 猜测。</small>
       </section>
 

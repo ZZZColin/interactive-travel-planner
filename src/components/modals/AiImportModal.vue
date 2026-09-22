@@ -83,6 +83,7 @@ watch(() => props.open, (open) => {
   durationDays.value = 1
   participants.value = [createParticipant()]
   budgetLimit.value = null
+  targetMode.value = 'new'
 })
 
 const supportedImageTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
@@ -214,6 +215,7 @@ function cancelParsing(): void {
 
 function applyImport(): void {
   if (!draft.value || selectedCount.value === 0) return
+  if (targetMode.value === 'current' && planner.readOnly) return
   const value = buildResolvedImport()
   if (targetMode.value === 'new') plans.createPlanFromAiImport(value)
   else plans.mergeAiImportIntoCurrent(value)
@@ -284,9 +286,10 @@ function applyImport(): void {
           <div><strong>导入方式</strong><span>默认创建新计划，不会覆盖当前计划。</span></div>
           <ElRadioGroup v-model="targetMode" size="small">
             <ElRadioButton value="new">创建新计划</ElRadioButton>
-            <ElRadioButton value="current" :disabled="!plans.activePlan">合并当前计划</ElRadioButton>
+            <ElRadioButton value="current" :disabled="!plans.activePlan || planner.readOnly">合并当前计划</ElRadioButton>
           </ElRadioGroup>
         </div>
+        <p v-if="planner.readOnly" class="ai-source-notice"><i class="pi pi-lock" />当前计划为只读分享，无法合并到当前计划，可以创建一个新计划。</p>
 
         <div class="ai-preview-meta">
           <div class="field"><label>计划名称</label><ElInput v-model="title" /></div>
@@ -327,7 +330,7 @@ function applyImport(): void {
 
     <template #footer>
       <ElButton text @click="emit('close')">取消</ElButton>
-      <ElButton v-if="draft" type="primary" :disabled="selectedCount === 0 || parsing" @click="applyImport">{{ targetMode === 'new' ? '创建并进入新计划' : '合并到当前计划' }}</ElButton>
+      <ElButton v-if="draft" type="primary" :disabled="selectedCount === 0 || parsing || (targetMode === 'current' && planner.readOnly)" @click="applyImport">{{ targetMode === 'new' ? '创建并进入新计划' : '合并到当前计划' }}</ElButton>
     </template>
   </ElDialog>
 </template>

@@ -20,6 +20,8 @@ const emit = defineEmits<{
   openDemo: []
   mapRuntimeChange: [selection: MapRuntimeSelection]
   mapSettings: [providerId: MapRendererId]
+  shareAccount: [plan: PlanRecord]
+  sharedWithMe: []
 }>()
 
 const store = usePlansStore()
@@ -106,6 +108,7 @@ async function requestDelete(plan: PlanRecord): Promise<void> {
       <div class="brand"><span class="brandmark">途</span>行途规划</div>
       <div class="spacer" />
       <LocaleSwitcher />
+      <ElButton text class="home-recycle-entry" title="查看别人分享给你的计划" @click="emit('sharedWithMe')"><i class="pi pi-share-alt" /><span>共享给我</span></ElButton>
       <ElButton v-if="store.recycleBin.length" text class="home-recycle-entry" title="打开计划回收站" @click="emit('recycle')"><i class="pi pi-trash" /><span>回收站</span><em>{{ store.recycleBin.length }}</em></ElButton>
       <ElDropdown trigger="click" popper-class="home-migration-menu" @command="openMigration" @visible-change="migrationOpen = $event">
         <ElButton text class="home-backup-entry home-migration-entry" :class="{ open: migrationOpen }" title="导入、导出与迁移数据"><i class="pi pi-box" /><span>导入导出</span><i class="pi pi-chevron-down" /></ElButton>
@@ -195,6 +198,9 @@ async function requestDelete(plan: PlanRecord): Promise<void> {
                 {{ planStatus(plan).label }}
               </ElTag>
               <div class="plan-card-actions">
+                <ElButton text circle class="plan-share-button" title="分享给账号" @click.stop="emit('shareAccount', plan)">
+                  <i class="pi pi-share-alt" />
+                </ElButton>
                 <ElButton text circle class="plan-edit-button" title="编辑计划" @click.stop="emit('edit', plan)">
                   <i class="pi pi-pencil" />
                 </ElButton>

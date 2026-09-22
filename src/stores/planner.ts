@@ -8,6 +8,7 @@ import { encodeRoutePath } from '../domain/polyline'
 import { buildPlanRouteProjection, nextPlanStop, previousPlanStop } from '../domain/routeProjection'
 import { formatDuration, scheduleDay } from '../domain/schedule'
 import { routeCacheKeyIncludesPlace, transportModeMeta, transportModeOf, transportRouteCacheKey } from '../domain/transport'
+import { schedulePushTripData } from '../auth/tripSync'
 import type { AiRouteDayArrangement } from '../ai/types'
 import type { BudgetSettings, BudgetState, ExpenseItem, PersistedPlannerState, Place, PlaceCategory, OvernightMode, PlacePriority, RouteCache, RouteOption, Stop, TransportMode, TripDay } from '../domain/types'
 
@@ -89,6 +90,13 @@ export const usePlannerStore = defineStore('planner', () => {
   const future = ref<BusinessSnapshot[]>([])
   const toast = ref('')
   let toastTimer = 0
+  // 查看别人以"只读"权限分享的计划时会置为 true：execute()/undo()/redo() 会
+  // 直接拒绝真正修改数据，不管是被哪个界面控件触发的。
+  const readOnly = ref(false)
+
+  function setReadOnly(value: boolean): void {
+    readOnly.value = value
+  }
 
   const places = computed<Record<string, Place>>(() => ({ ...basePlaces, ...customPlaces }))
   const selectedDay = computed(() => days.value.find((day) => day.id === selectedDayId.value) ?? days.value[0])
@@ -190,6 +198,10 @@ export const usePlannerStore = defineStore('planner', () => {
   }
 
   function execute(label: string, mutate: () => void): void {
+    if (readOnly.value) {
+      notify('只读模式下无法编辑，你的修改不会被保存')
+      return
+    }
     const before = businessSnapshot()
     const oldSchedule = currentSchedule.value
     mutate()
@@ -217,6 +229,10 @@ export const usePlannerStore = defineStore('planner', () => {
   }
 
   function undo(): void {
+    if (readOnly.value) {
+      notify('只读模式下无法编辑，你的修改不会被保存')
+      return
+    }
     const snapshot = history.value.pop()
     if (!snapshot) return
     future.value.push(businessSnapshot())
@@ -225,6 +241,10 @@ export const usePlannerStore = defineStore('planner', () => {
   }
 
   function redo(): void {
+    if (readOnly.value) {
+      notify('只读模式下无法编辑，你的修改不会被保存')
+      return
+    }
     const snapshot = future.value.pop()
     if (!snapshot) return
     history.value.push(businessSnapshot())
@@ -740,12 +760,15 @@ export const usePlannerStore = defineStore('planner', () => {
         budget,
       }
       localStorage.setItem('interactiveTravel.continuousPlanner.v1', JSON.stringify(value))
+      // 按账号同步到服务器（防抖），这样换设备登录同一账号也能看到这份计划。
+      schedulePushTripData()
     },
     { deep: true },
   )
 
   watch(routeCache, () => {
     localStorage.setItem('interactiveTravel.continuousRoutes.v1', JSON.stringify(routeCache))
+    schedulePushTripData()
   }, { deep: true })
 
   return {
@@ -766,6 +789,8 @@ export const usePlannerStore = defineStore('planner', () => {
     history,
     future,
     toast,
+    readOnly,
+    setReadOnly,
     selectedDay,
     currentSchedule,
     allScheduledIds,

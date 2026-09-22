@@ -17,6 +17,8 @@ import BatchImportModal from './components/modals/BatchImportModal.vue'
 import PlanCheckModal from './components/modals/PlanCheckModal.vue'
 import PlanEditorModal from './components/modals/PlanEditorModal.vue'
 import ReduceDaysModal from './components/modals/ReduceDaysModal.vue'
+import SharePlanModal from './components/modals/SharePlanModal.vue'
+import SharedWithMeModal from './components/modals/SharedWithMeModal.vue'
 import type { PlanEditorValue, PlanRecord } from './domain/types'
 import { planIdFromUrl, urlWithPlanId } from './domain/planUrl'
 import { normalizeMapRuntimeSelection, type MapRendererId, type MapRuntimeSelection } from './map/config'
@@ -33,10 +35,15 @@ const WeatherSettingsModal = defineAsyncComponent(() => import('./components/mod
 const ShareStudioModal = defineAsyncComponent(() => import('./components/modals/ShareStudioModal.vue'))
 import { usePlannerStore } from './stores/planner'
 import { usePlansStore } from './stores/plans'
+import { useSharedPlansStore } from './stores/sharedPlans'
 
 const elementLocale = computed(() => appLocale.value === 'zh-CN' ? zhCn : en)
 const planner = usePlannerStore()
 const plans = usePlansStore()
+// 实例化一次，让"我分享出去的计划"列表尽早从服务器拉回来，
+// 这样 plans.ts 里编辑计划时才知道哪些计划需要顺带把最新内容推给分享对象。
+const sharedPlans = useSharedPlansStore()
+sharedPlans.refreshMine()
 const initialPlanId = planIdFromUrl(location.href)
 const initialScene = Number(new URLSearchParams(location.search).get('scene') ?? 0)
 const demoMode = ref(!initialPlanId && ((initialScene >= 1 && initialScene <= 4) || new URLSearchParams(location.search).get('demo') === '1'))
@@ -60,6 +67,9 @@ const planBackupInitialSection = ref<'backup' | 'recycle'>('backup')
 const serviceConfigBackupOpen = ref(false)
 const completeBackupOpen = ref(false)
 const shareOpen = ref(false)
+const shareAccountOpen = ref(false)
+const sharingPlan = ref<PlanRecord | null>(null)
+const sharedWithMeOpen = ref(false)
 function openMapSettings(providerId: MapRendererId = 'amap', activateOnSave = false): void {
   mapSettingsActivateOnSave.value = activateOnSave
   settingsOpen.value = providerId === 'amap'
@@ -104,6 +114,11 @@ async function handleMapConfigSaved(rendererId: MapRendererId): Promise<void> {
 function openPlanBackup(section: 'backup' | 'recycle' = 'backup'): void {
   planBackupInitialSection.value = section
   backupOpen.value = true
+}
+
+function openShareAccount(plan: PlanRecord): void {
+  sharingPlan.value = plan
+  shareAccountOpen.value = true
 }
 
 async function requestMapRuntimeSelection(requested: MapRuntimeSelection): Promise<void> {
@@ -349,10 +364,22 @@ function handleBrowserNavigation(): void {
   restorePlanFromLocation()
 }
 
+// 全部计划跨设备同步：启动时拉一次，窗口重新拿到焦点时再拉一次（比如从
+// 另一台设备切回这个标签页），另外每 2 分钟兜底轮询一次，避免长时间停留
+// 在同一个标签页时看不到别的设备的更新。没有做 WebSocket 推送，所以不是
+// 秒级的实时同步。
+function syncPlansNow(): void {
+  plans.syncWithServer().catch(() => {})
+}
+let planSyncInterval = 0
+
 onMounted(() => {
   constrainSidebarWidth()
   window.addEventListener('resize', constrainSidebarWidth)
   window.addEventListener('popstate', handleBrowserNavigation)
+  window.addEventListener('focus', syncPlansNow)
+  planSyncInterval = window.setInterval(syncPlansNow, 2 * 60_000)
+  syncPlansNow()
   if (initialPlanId) {
     restorePlanFromLocation()
   } else if (initialScene >= 1 && initialScene <= 4) {
@@ -366,12 +393,14 @@ onBeforeUnmount(() => {
   finishSidebarResize()
   window.removeEventListener('resize', constrainSidebarWidth)
   window.removeEventListener('popstate', handleBrowserNavigation)
+  window.removeEventListener('focus', syncPlansNow)
+  window.clearInterval(planSyncInterval)
 })
 </script>
 
 <template>
   <ElConfigProvider :locale="elementLocale">
-    <HomePage v-if="plans.view === 'home'" @map-runtime-change="requestMapRuntimeSelection" @map-settings="openMapSettings" @create="createPlan" @ai-import="aiImportOpen = true" @edit="editPlan" @backup="openPlanBackup('backup')" @recycle="openPlanBackup('recycle')" @config-backup="serviceConfigBackupOpen = true" @complete-backup="completeBackupOpen = true" @open-demo="plans.openPlan(plans.ensureDemoPlan().metadata.id)" />
+    <HomePage v-if="plans.view === 'home'" @map-runtime-change="requestMapRuntimeSelection" @map-settings="openMapSettings" @create="createPlan" @ai-import="aiImportOpen = true" @edit="editPlan" @backup="openPlanBackup('backup')" @recycle="openPlanBackup('recycle')" @config-backup="serviceConfigBackupOpen = true" @complete-backup="completeBackupOpen = true" @open-demo="plans.openPlan(plans.ensureDemoPlan().metadata.id)" @share-account="openShareAccount" @shared-with-me="sharedWithMeOpen = true" />
 
     <template v-else>
       <div v-if="plans.openingPlan" class="plan-opening-screen">
@@ -380,6 +409,7 @@ onBeforeUnmount(() => {
       </div>
       <template v-else>
         <div class="app">
+          <div v-if="planner.readOnly" class="read-only-banner"><i class="pi pi-eye" />只读模式：这是别人分享给你的计划，你的修改不会被保存</div>
           <AppHeader :demo-mode="demoMode" @share="shareOpen = true" @check="checkOpen = true" @budget="budgetOpen = true" @weather="weatherSettingsOpen = true" @edit-plan="editActivePlan" />
           <nav class="mobile-pane-switch"><button :class="{ active: mobilePane === 'itinerary' }" @click="setMobilePane('itinerary')"><i class="pi pi-list" />行程</button><button :class="{ active: mobilePane === 'map' }" @click="setMobilePane('map')"><i class="pi pi-map" />地图</button></nav>
           <main ref="workspaceRef" class="workspace" :class="[`mobile-${mobilePane}`, { 'resizing-sidebar': sidebarResizing }]" :style="workspaceStyle">
@@ -431,6 +461,8 @@ onBeforeUnmount(() => {
     <ServiceConfigBackupModal :open="serviceConfigBackupOpen" @close="serviceConfigBackupOpen = false" />
     <CompleteBackupModal :open="completeBackupOpen" @close="completeBackupOpen = false" />
     <ShareStudioModal :open="shareOpen" @close="shareOpen = false" @settings="aiSettingsOpen = true" @map-settings="openMapSettings('amap')" />
+    <SharePlanModal :open="shareAccountOpen" :plan="sharingPlan" @close="shareAccountOpen = false" />
+    <SharedWithMeModal :open="sharedWithMeOpen" @close="sharedWithMeOpen = false" />
     <PlanEditorModal
       :open="planEditorOpen"
       :plan="editingPlan"
@@ -447,3 +479,16 @@ onBeforeUnmount(() => {
     <div class="toast" :class="{ show: planner.toast }">{{ translateLegacyText(planner.toast) }}</div>
   </ElConfigProvider>
 </template>
+
+<style scoped>
+.read-only-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--el-color-warning-light-9, #fdf6ec);
+  color: var(--el-color-warning-dark-2, #b88230);
+  font-size: 13px;
+  border-bottom: 1px solid var(--el-color-warning-light-5, #f3d19e);
+}
+</style>
