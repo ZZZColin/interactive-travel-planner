@@ -23,7 +23,13 @@ watch(() => props.open, async (open) => {
   }
 })
 
-async function open(id: number): Promise<void> {
+// 这个函数原来叫 open，跟 defineProps 里的 open（弹窗是否显示的布尔值）
+// 撞名了：<script setup> 里模板能直接访问的是这个本地声明的 open 函数，
+// 不是 props.open，导致下面模板里 <ElDialog :model-value="open" ...>
+// 实际绑定到的是这个函数本身（类型是 (id: number) => Promise<void>），
+// 不是布尔值——vue-tsc 能查出这个类型不匹配（plain tsc 不检查模板绑定，
+// 之前的隔离类型检查没跑起来 vue-tsc，没能查出这一处）。改名避免撞名。
+async function openPlan(id: number): Promise<void> {
   if (opening.value) return
   opening.value = id
   error.value = ''
@@ -53,7 +59,7 @@ async function open(id: number): Promise<void> {
           <span>来自 {{ plan.ownerUsername }} · 最近更新 {{ formatPlanDateTime(plan.updatedAt) }}</span>
         </div>
         <ElTag size="small" :type="plan.permission === 'edit' ? 'warning' : 'info'" effect="light">{{ plan.permission === 'edit' ? '可编辑' : '只读' }}</ElTag>
-        <ElButton size="small" type="primary" :loading="opening === plan.id" @click="open(plan.id)">打开</ElButton>
+        <ElButton size="small" type="primary" :loading="opening === plan.id" @click="openPlan(plan.id)">打开</ElButton>
       </div>
     </div>
 
