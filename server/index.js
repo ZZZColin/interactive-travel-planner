@@ -23,9 +23,15 @@ const PORT = Number(process.env.PORT || 3000)
 const COOKIE_NAME = 'trippath_session'
 const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true'
 const ALLOW_SIGNUP = process.env.ALLOW_SIGNUP === 'true'
-// 前端和 API 现在是同一个服务、同一个源，正常情况下不需要跨域，留空即可。
-// 只有本地开发时前端单独跑 vite dev server（另一个端口）才需要设置这个。
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || ''
+// 网页版前端和 API 是同一个服务、同一个源，不需要跨域。
+// 桌面版（Tauri）不一样：它是独立的本地应用，请求这个后端天然就是跨域的，
+// 必须在这里把桌面版的来源明确列出来才能通过 CORS。多个来源用逗号分开。
+// 桌面版默认来源：macOS/Linux 是 tauri://localhost；Windows 开了
+// useHttpsScheme 之后是 https://tauri.localhost（tauri.conf.json 里已经配置）。
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean)
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 天
 const TWO_FACTOR_CHALLENGE_TTL_MS = 5 * 60 * 1000 // 5 分钟
 const MAX_FAILED_ATTEMPTS = 5
@@ -122,7 +128,7 @@ app.set('trust proxy', 1)
 app.use(helmet({ contentSecurityPolicy: false }))
 app.use(express.json({ limit: '2mb' }))
 app.use(cookieParser())
-app.use(cors(ALLOWED_ORIGIN ? { origin: ALLOWED_ORIGIN, credentials: true } : { origin: false }))
+app.use(cors(ALLOWED_ORIGINS.length ? { origin: ALLOWED_ORIGINS, credentials: true } : { origin: false }))
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -157,7 +163,13 @@ function createSession(user, req) {
 function setSessionCookie(res, rawToken) {
   res.cookie(COOKIE_NAME, rawToken, {
     httpOnly: true,
-    sameSite: 'lax',
+    // 桌面版请求这个后端是跨站的（tauri://localhost 或 https://tauri.localhost
+    // 请求另一个域名），跨站请求要带上 cookie，必须是 SameSite=None，而
+    // SameSite=None 的 cookie 浏览器/WebView 强制要求同时是 Secure，也就是只能
+    // 在 HTTPS 下发放。网页版是同源访问，SameSite=Lax 就够用，也不需要 HTTPS。
+    // 这里跟着 COOKIE_SECURE 走：开了 HTTPS（COOKIE_SECURE=true）就换成 None，
+    // 方便同时支持桌面版；本地 http 测试（COOKIE_SECURE=false）保持 Lax。
+    sameSite: COOKIE_SECURE ? 'none' : 'lax',
     secure: COOKIE_SECURE,
     path: '/',
     maxAge: SESSION_TTL_MS,

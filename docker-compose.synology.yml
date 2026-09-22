@@ -9,9 +9,16 @@ services:
       ADMIN_PASSWORD: 请替换成一个足够复杂的密码
       # 公网直接暴露的情况下，建议保持 false，只让管理员在"用户管理"里手动建账号
       ALLOW_SIGNUP: "false"
-      # 只用 http://群晖IP:端口 访问时留 false；一旦配了 https 反代域名，必须改成 true，
-      # 否则登录 cookie 在明文 http 下会被拒绝下发，等于登录不了
-      COOKIE_SECURE: "false"
+      # 必须配好 https 反代域名之后再启动，改成 true。桌面版要登录这个服务器，
+      # 靠的是跨站 cookie（SameSite=None），这种 cookie 浏览器/WebView 强制
+      # 要求走 HTTPS，COOKIE_SECURE=false 的话桌面版永远登录不进去；
+      # 只用 http://群晖IP:端口 访问、且不需要桌面版登录的情况下，才能留 false。
+      COOKIE_SECURE: "true"
+      # 桌面版（Tauri）请求这个后端是跨域的，要把它的来源加进白名单才能通过 CORS。
+      # macOS/Linux 是 tauri://localhost，Windows（已在 tauri.conf.json 里开启
+      # useHttpsScheme）是 https://tauri.localhost，两个都要有，用逗号分隔。
+      # 只想给网页版用、完全不发布桌面版的话，这行可以留空。
+      ALLOWED_ORIGIN: "tauri://localhost,https://tauri.localhost"
     volumes:
       # 把左边这个路径换成你群晖上一个真实存在的共享文件夹路径，比如：
       #   /volume1/docker/trippath/data:/data

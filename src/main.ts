@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { isTauri } from '@tauri-apps/api/core'
 import 'element-plus/es/components/autocomplete/style/css'
 import 'element-plus/es/components/avatar/style/css'
 import 'element-plus/es/components/button/style/css'
@@ -21,8 +22,9 @@ import 'primeicons/primeicons.css'
 import './style.css'
 import './styles/experience.css'
 import LoginScreen from './components/auth/LoginScreen.vue'
+import ServerAddressGate from './components/auth/ServerAddressGate.vue'
 import { i18n, installLegacyDomLocalization } from './i18n'
-import { fetchSession, fetchServerConfig } from './auth/client'
+import { fetchSession, fetchServerConfig, getServerBaseUrl } from './auth/client'
 import { importServiceConfigBackup } from './config/serviceConfigBackup'
 
 // 注意：这里故意不在文件顶部用静态 import 引入 './App.vue'。
@@ -42,6 +44,22 @@ window.addEventListener('vite:preloadError', (event) => {
   sessionStorage.setItem(PRELOAD_RECOVERY_KEY, String(now))
   window.location.reload()
 })
+
+// 桌面版没有内置后端，必须先知道连哪个服务器：本地还没存过地址的话，
+// 先挂一个只填服务器地址的迷你应用，填完且验证通过才继续往下走。
+// 网页版和后端同源，不需要这一步。
+async function waitForServerAddress(): Promise<void> {
+  if (!isTauri() || getServerBaseUrl()) return
+  await new Promise<void>((resolve) => {
+    const gateApp = createApp(ServerAddressGate, {
+      onSuccess: () => {
+        gateApp.unmount()
+        resolve()
+      },
+    })
+    gateApp.mount('#app')
+  })
+}
 
 // 在挂载真正的应用之前，先确认已经登录：
 // 1. 检查已有会话（cookie）是否有效
@@ -78,6 +96,8 @@ async function hydrateFromServer(): Promise<void> {
 }
 
 async function bootstrap(): Promise<void> {
+  // 桌面版也要求登录：先确认（并在需要时填写）服务器地址，再走登录流程。
+  await waitForServerAddress()
   await waitForLogin()
   await hydrateFromServer()
 

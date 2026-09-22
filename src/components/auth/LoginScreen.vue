@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ElButton, ElForm, ElFormItem, ElInput } from 'element-plus'
-import { fetchSignupStatus, login, register, verifyTwoFactor } from '../../auth/client'
+import { isTauri } from '@tauri-apps/api/core'
+import { clearServerBaseUrl, fetchSignupStatus, login, register, verifyTwoFactor } from '../../auth/client'
 
 const emit = defineEmits<{ success: [] }>()
 const mode = ref<'login' | 'register' | 'twoFactor'>('login')
@@ -90,6 +91,14 @@ function switchMode(next: 'login' | 'register'): void {
   error.value = ''
   info.value = ''
 }
+
+// 只有桌面版会显示这个入口——网页版的地址就是浏览器地址栏里那个，没有"换一个"的概念。
+// 桌面版填错服务器地址、或者要换一台服务器时，清掉存的地址再整个重新加载页面，
+// main.ts 的 bootstrap() 会重新走一遍，从填地址这一步开始。
+function changeServer(): void {
+  clearServerBaseUrl()
+  window.location.reload()
+}
 </script>
 
 <template>
@@ -116,6 +125,7 @@ function switchMode(next: 'login' | 'register'): void {
       </ElButton>
       <ElButton v-if="mode === 'login' && allowSignup" text style="width: 100%" @click="switchMode('register')">没有账号？去注册</ElButton>
       <ElButton v-if="mode === 'register'" text style="width: 100%" @click="switchMode('login')">已有账号？去登录</ElButton>
+      <ElButton v-if="isTauri() && mode !== 'twoFactor'" text style="width: 100%" @click="changeServer">连错服务器了？点这里重新填地址</ElButton>
     </form>
   </div>
 </template>

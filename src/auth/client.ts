@@ -1,4 +1,32 @@
-const API_BASE = '/api'
+import { isTauri } from '@tauri-apps/api/core'
+
+// 桌面版（Tauri）是本地跑的独立应用，没有同源的后端可以打——网页版靠"和
+// server/index.js 同源"这一点，相对路径 /api 就够用；桌面版必须先知道要连
+// 哪台服务器，这个地址由用户在 ServerAddressGate 里手动填一次，存本地。
+const SERVER_BASE_URL_KEY = 'interactiveTravel.desktop.serverBaseUrl'
+
+export function getServerBaseUrl(): string {
+  try {
+    return localStorage.getItem(SERVER_BASE_URL_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function setServerBaseUrl(url: string): void {
+  const normalized = url.trim().replace(/\/+$/, '')
+  localStorage.setItem(SERVER_BASE_URL_KEY, normalized)
+}
+
+export function clearServerBaseUrl(): void {
+  localStorage.removeItem(SERVER_BASE_URL_KEY)
+}
+
+function apiBase(): string {
+  if (!isTauri()) return '/api'
+  const base = getServerBaseUrl()
+  return base ? `${base}/api` : '/api'
+}
 
 export interface SessionInfo {
   username: string
@@ -45,7 +73,7 @@ export interface TwoFactorSetup {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${apiBase()}${path}`, {
     ...options,
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}) },
