@@ -184,6 +184,9 @@ importers:
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
+      lib0:
+        specifier: ^0.2.98
+        version: 0.2.117
       mapbox-gl:
         specifier: ^3.31.0
         version: 3.31.0
