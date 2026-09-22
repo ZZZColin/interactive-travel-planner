@@ -1,0 +1,14 @@
+.git
+.github
+.vscode
+node_modules
+dist
+docs
+visual-regression
+tests
+src-tauri
+*.md
+.env
+.env.*
+!.env.example
+npm-debug.log*
