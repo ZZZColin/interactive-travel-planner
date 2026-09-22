@@ -58,6 +58,10 @@ async function waitForServerAddress(): Promise<void> {
       },
     })
     gateApp.mount('#app')
+    // 这个迷你应用是在 installLegacyDomLocalization() 正式启动之前挂载的，
+    // 不补这一下的话，界面语言设成英文的人也只会看到写死的中文。
+    const gateRoot = document.getElementById('app')
+    if (gateRoot) installLegacyDomLocalization(gateRoot)
   })
 }
 
@@ -79,6 +83,8 @@ async function waitForLogin(): Promise<void> {
       },
     })
     loginApp.mount('#app')
+    const loginRoot = document.getElementById('app')
+    if (loginRoot) installLegacyDomLocalization(loginRoot)
   })
 }
 
