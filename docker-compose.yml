@@ -7,3 +7,15 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+    environment:
+      # 没有这两个变量，容器里的数据库是空的，谁都登录不进去——
+      # ensureBootstrapAdmin() 只在数据库为空且这两个变量都存在时才会自动建管理员账号。
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: change-me-please
+      ALLOW_SIGNUP: "false"
+      COOKIE_SECURE: "false"
+    volumes:
+      - trippath-data:/data
+
+volumes:
+  trippath-data:

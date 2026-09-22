@@ -1,0 +1,21 @@
+services:
+  trippath:
+    image: 你的DockerHub用户名/interactive-travel-planner:latest
+    container_name: trippath
+    restart: unless-stopped
+    environment:
+      # 首次启动时自动创建的管理员账号，之后可以在应用里改密码、再建更多账号
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: 请替换成一个足够复杂的密码
+      # 公网直接暴露的情况下，建议保持 false，只让管理员在"用户管理"里手动建账号
+      ALLOW_SIGNUP: "false"
+      # 只用 http://群晖IP:端口 访问时留 false；一旦配了 https 反代域名，必须改成 true，
+      # 否则登录 cookie 在明文 http 下会被拒绝下发，等于登录不了
+      COOKIE_SECURE: "false"
+    volumes:
+      - trippath-data:/data
+    ports:
+      - "8080:80"
+
+volumes:
+  trippath-data:
