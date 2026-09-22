@@ -26,6 +26,7 @@ WORKDIR /app
 COPY --from=server-deps /app/node_modules ./node_modules
 COPY server/package.json ./
 COPY server/index.js ./
+COPY server/collabServer.js ./
 COPY --from=frontend-builder /app/dist ./public
 
 ENV PORT=80
