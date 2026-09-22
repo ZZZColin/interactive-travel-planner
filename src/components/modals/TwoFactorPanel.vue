@@ -132,9 +132,6 @@ onMounted(refreshStatus)
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
-  margin-top: 16px;
 }
 .two-factor-secret {
   font-family: monospace;

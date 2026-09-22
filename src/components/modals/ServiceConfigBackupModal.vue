@@ -3,7 +3,6 @@ import { computed, ref, watch } from 'vue'
 import { ElButton, ElCheckbox, ElDialog, ElRadioButton, ElRadioGroup, ElTag } from 'element-plus'
 import { createServiceConfigBackup, importServiceConfigBackup, inspectServiceConfigBackup, type ServiceConfigBackupSummary, type ServiceConfigImportStrategy } from '../../config/serviceConfigBackup'
 import { usePlannerStore } from '../../stores/planner'
-import ServerSyncPanel from './ServerSyncPanel.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -110,8 +109,6 @@ function importConfig(): void {
           <small>{{ strategy === 'merge' ? '保留当前文件中没有涉及的 AI、地图和天气配置。' : '清除当前 AI、地图和独立天气服务配置，再按文件内容恢复。旅行计划不会受到影响。' }}</small>
         </div>
       </section>
-
-      <ServerSyncPanel />
 
       <div v-if="error" class="form-error"><i class="pi pi-exclamation-circle" />{{ error }}</div>
       <div class="backup-safety-note"><i class="pi pi-shield" /><span>只解析受支持的 JSON 字段，不执行文件中的代码；天气缓存和旅行计划不会被导入。</span></div>

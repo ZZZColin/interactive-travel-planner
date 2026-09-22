@@ -174,9 +174,6 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
-  margin-top: 16px;
 }
 .admin-users-card header { display: flex; align-items: center; gap: 12px; }
 .admin-users-card header > div:nth-child(2) { flex: 1; display: flex; flex-direction: column; }

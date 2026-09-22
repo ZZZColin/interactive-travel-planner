@@ -1,32 +1,19 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { ElButton, ElForm, ElFormItem, ElInput } from 'element-plus'
 import { createServiceConfigBackup, importServiceConfigBackup } from '../../config/serviceConfigBackup'
-import { changePassword, fetchServerConfig, fetchSession, logout, pushServerConfig } from '../../auth/client'
+import { changePassword, fetchServerConfig, logout, pushServerConfig } from '../../auth/client'
 import { usePlannerStore } from '../../stores/planner'
-import AdminUsersPanel from './AdminUsersPanel.vue'
-import AuditLogPanel from './AuditLogPanel.vue'
-import TwoFactorPanel from './TwoFactorPanel.vue'
 
 const planner = usePlannerStore()
 const pushing = ref(false)
 const pulling = ref(false)
 const error = ref('')
-const role = ref<'admin' | 'member' | null>(null)
 
 const changingPassword = ref(false)
 const currentPassword = ref('')
 const newPassword = ref('')
 const passwordError = ref('')
-
-onMounted(async () => {
-  try {
-    const session = await fetchSession()
-    role.value = session.role
-  } catch {
-    role.value = null
-  }
-})
 
 async function pushToServer(): Promise<void> {
   pushing.value = true
@@ -110,10 +97,6 @@ async function handleLogout(): Promise<void> {
 
     <ElButton text @click="handleLogout"><i class="pi pi-sign-out" />退出登录</ElButton>
   </section>
-
-  <TwoFactorPanel />
-  <AdminUsersPanel v-if="role === 'admin'" />
-  <AuditLogPanel v-if="role === 'admin'" />
 </template>
 
 <style scoped>
@@ -121,9 +104,6 @@ async function handleLogout(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
-  margin-top: 16px;
 }
 .service-config-server-actions { display: flex; gap: 8px; }
 .service-config-password-change {

@@ -31,11 +31,11 @@ onMounted(load)
     </header>
     <p v-if="error" class="auth-gate-error">{{ error }}</p>
     <ElTable :data="entries" v-loading="loading" size="small" max-height="360">
-      <ElTableColumn prop="created_at" label="时间" width="160" />
-      <ElTableColumn prop="username" label="账号" width="120" />
-      <ElTableColumn prop="action" label="动作" width="200" />
-      <ElTableColumn prop="detail" label="详情" />
-      <ElTableColumn prop="ip" label="IP" width="140" />
+      <ElTableColumn prop="created_at" label="时间" width="130" />
+      <ElTableColumn prop="username" label="账号" width="100" />
+      <ElTableColumn prop="action" label="动作" width="150" />
+      <ElTableColumn prop="detail" label="详情" min-width="140" show-overflow-tooltip />
+      <ElTableColumn prop="ip" label="IP" width="110" />
     </ElTable>
   </section>
 </template>
@@ -45,9 +45,6 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
-  margin-top: 16px;
 }
 .audit-log-card header { display: flex; align-items: center; gap: 12px; }
 .audit-log-card header > div:nth-child(2) { flex: 1; display: flex; flex-direction: column; }

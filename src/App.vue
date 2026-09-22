@@ -30,6 +30,8 @@ const AiSettingsModal = defineAsyncComponent(() => import('./components/modals/A
 const BudgetModal = defineAsyncComponent(() => import('./components/budget/BudgetModal.vue'))
 const PlanBackupModal = defineAsyncComponent(() => import('./components/modals/PlanBackupModal.vue'))
 const ServiceConfigBackupModal = defineAsyncComponent(() => import('./components/modals/ServiceConfigBackupModal.vue'))
+const AccountSyncModal = defineAsyncComponent(() => import('./components/modals/AccountSyncModal.vue'))
+const SecurityAdminModal = defineAsyncComponent(() => import('./components/modals/SecurityAdminModal.vue'))
 const CompleteBackupModal = defineAsyncComponent(() => import('./components/modals/CompleteBackupModal.vue'))
 const WeatherSettingsModal = defineAsyncComponent(() => import('./components/modals/WeatherSettingsModal.vue'))
 const ShareStudioModal = defineAsyncComponent(() => import('./components/modals/ShareStudioModal.vue'))
@@ -65,6 +67,8 @@ const planEditorOpen = ref(false)
 const backupOpen = ref(false)
 const planBackupInitialSection = ref<'backup' | 'recycle'>('backup')
 const serviceConfigBackupOpen = ref(false)
+const accountSyncOpen = ref(false)
+const securityAdminOpen = ref(false)
 const completeBackupOpen = ref(false)
 const shareOpen = ref(false)
 const shareAccountOpen = ref(false)
@@ -400,7 +404,7 @@ onBeforeUnmount(() => {
 
 <template>
   <ElConfigProvider :locale="elementLocale">
-    <HomePage v-if="plans.view === 'home'" @map-runtime-change="requestMapRuntimeSelection" @map-settings="openMapSettings" @create="createPlan" @ai-import="aiImportOpen = true" @edit="editPlan" @backup="openPlanBackup('backup')" @recycle="openPlanBackup('recycle')" @config-backup="serviceConfigBackupOpen = true" @complete-backup="completeBackupOpen = true" @open-demo="plans.openPlan(plans.ensureDemoPlan().metadata.id)" @share-account="openShareAccount" @shared-with-me="sharedWithMeOpen = true" />
+    <HomePage v-if="plans.view === 'home'" @map-runtime-change="requestMapRuntimeSelection" @map-settings="openMapSettings" @create="createPlan" @ai-import="aiImportOpen = true" @edit="editPlan" @backup="openPlanBackup('backup')" @recycle="openPlanBackup('recycle')" @config-backup="serviceConfigBackupOpen = true" @complete-backup="completeBackupOpen = true" @account-sync="accountSyncOpen = true" @security-admin="securityAdminOpen = true" @open-demo="plans.openPlan(plans.ensureDemoPlan().metadata.id)" @share-account="openShareAccount" @shared-with-me="sharedWithMeOpen = true" />
 
     <template v-else>
       <div v-if="plans.openingPlan" class="plan-opening-screen">
@@ -459,6 +463,8 @@ onBeforeUnmount(() => {
     />
     <PlanBackupModal :open="backupOpen" :initial-section="planBackupInitialSection" @close="backupOpen = false" />
     <ServiceConfigBackupModal :open="serviceConfigBackupOpen" @close="serviceConfigBackupOpen = false" />
+    <AccountSyncModal :open="accountSyncOpen" @close="accountSyncOpen = false" />
+    <SecurityAdminModal :open="securityAdminOpen" @close="securityAdminOpen = false" />
     <CompleteBackupModal :open="completeBackupOpen" @close="completeBackupOpen = false" />
     <ShareStudioModal :open="shareOpen" @close="shareOpen = false" @settings="aiSettingsOpen = true" @map-settings="openMapSettings('amap')" />
     <SharePlanModal :open="shareAccountOpen" :plan="sharingPlan" @close="shareAccountOpen = false" />
