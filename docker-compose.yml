@@ -1,0 +1,9 @@
+services:
+  trippath:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trippath:local
+    ports:
+      - "8080:80"
+    restart: unless-stopped
