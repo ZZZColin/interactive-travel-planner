@@ -13,9 +13,11 @@ services:
       # 否则登录 cookie 在明文 http 下会被拒绝下发，等于登录不了
       COOKIE_SECURE: "false"
     volumes:
-      - trippath-data:/data
+      # 把左边这个路径换成你群晖上一个真实存在的共享文件夹路径，比如：
+      #   /volume1/docker/trippath/data:/data
+      # 先在 File Station 里建好这个文件夹（Docker/trippath/data），
+      # 数据库文件 trippath.db 之后就会出现在这里，方便你直接备份/查看，
+      # 不用去猜 Docker 内部 named volume 到底存在磁盘的什么地方。
+      - /volume1/docker/trippath/data:/data
     ports:
       - "8080:80"
-
-volumes:
-  trippath-data:
