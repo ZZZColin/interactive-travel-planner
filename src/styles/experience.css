@@ -171,7 +171,6 @@
 @media(max-width:780px){.cesium-tour-panel{width:calc(100% - 24px)}.cesium-tour-panel>footer{grid-template-columns:1fr}.cesium-tour-actions{justify-content:flex-end}.cesium-tour-speed-control>span{width:100%}}
 @media(max-width:700px){.map-tour-button span{display:none}.cesium-tour-panel{bottom:12px;padding:11px}.cesium-tour-context{gap:8px}.cesium-tour-context span:first-child{display:none}}
 
-
 /* Google Maps provider */
 .google-html-overlay{position:absolute;left:0;top:0;will-change:transform;pointer-events:auto}.google-html-overlay.anchor-bottom{transform:translate(-50%,-100%)}.google-html-overlay.anchor-center{transform:translate(-50%,-50%)}
 .map-provider-google{background:#e8eee9}.map-provider-google .travel-marker,.map-provider-google .map-route-info,.map-provider-google .current-location-marker{pointer-events:auto}
@@ -202,3 +201,11 @@
 .ai-profile-option,.weather-provider-option{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px}.ai-profile-option>span,.weather-provider-option>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.weather-provider-card-tags{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
 
 .home-recycle-entry{height:34px!important;display:inline-flex!important;align-items:center;gap:6px;padding:0 9px!important;border:1px solid #eadfca!important;border-radius:10px!important;background:#fffaf0!important;color:#966b2d!important}.home-recycle-entry:hover{border-color:#dfc592!important;background:#fff5e4!important}.home-recycle-entry span{font-size:10px;font-weight:750}.home-recycle-entry em{min-width:17px;height:17px;padding:0 5px;border-radius:999px;background:#ee8b43;color:#fff;font-style:normal;font-size:8px;display:grid;place-items:center}.plan-backup-modal .el-dialog__body{max-height:calc(100vh - 190px);overflow-y:auto}.plan-history-section.recycle.prioritized{order:-2}.recycle-empty-state{order:-2;min-height:130px;border:1px dashed #e6d1ad;border-radius:12px;background:#fffaf1;display:grid;place-items:center;align-content:center;gap:7px;color:#8c6a37}.recycle-empty-state i{font-size:24px;color:#d09642}.recycle-empty-state strong{font-size:12px}.recycle-empty-state span{font-size:9px;color:#8b7b63}@media(max-width:700px){.home-recycle-entry{width:34px;padding:0!important;justify-content:center}.home-recycle-entry span{display:none}.home-recycle-entry em{position:absolute;transform:translate(11px,-11px)}}
+/* 修复：全局服务配置弹窗（导出/导入 + 服务器同步 + 修改密码 + 两步验证 +
+   管理员的用户管理/审计日志）内容变多之后，桌面端弹窗没有高度上限，会长
+   到超出可视区域，而 html/body 全局是 overflow:hidden，导致底部内容完全
+   看不到也滚不到。用跟 .share-studio-modal 一样的做法：限制弹窗整体高度，
+   header/footer 固定，只让中间内容区可以滚动。 */
+.service-config-backup-modal.el-dialog{height:auto;max-height:94vh;display:flex;flex-direction:column}
+.service-config-backup-modal .el-dialog__header,.service-config-backup-modal .el-dialog__footer{flex:none}
+.service-config-backup-modal .el-dialog__body{flex:1;min-height:0;overflow:auto}
