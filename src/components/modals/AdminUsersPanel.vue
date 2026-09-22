@@ -93,6 +93,12 @@ async function removeUser(user: AdminUser): Promise<void> {
   }
 }
 
+// ElTableColumn 的作用域插槽拿不到 AdminUser 这个具体类型（推断成宽泛的 DefaultRow），
+// 用这个小函数统一转换一下，模板里就不用到处写 `as AdminUser` 了。
+function asAdminUser(row: unknown): AdminUser {
+  return row as AdminUser
+}
+
 async function submitReset(): Promise<void> {
   if (resetTargetId.value == null || resetPassword.value.length < 8) return
   resetting.value = true
@@ -123,19 +129,19 @@ onMounted(load)
       <ElTableColumn prop="username" label="用户名" />
       <ElTableColumn label="角色">
         <template #default="{ row }">
-          <ElButton size="small" text @click="toggleRole(row as AdminUser)">{{ (row as AdminUser).role === 'admin' ? '管理员' : '普通用户' }}</ElButton>
+          <ElButton size="small" text @click="toggleRole(asAdminUser(row))">{{ asAdminUser(row).role === 'admin' ? '管理员' : '普通用户' }}</ElButton>
         </template>
       </ElTableColumn>
       <ElTableColumn label="状态">
         <template #default="{ row }">
-          <ElSwitch :model-value="!(row as AdminUser).disabled" @change="toggleDisabled(row as AdminUser)" />
+          <ElSwitch :model-value="!asAdminUser(row).disabled" @change="toggleDisabled(asAdminUser(row))" />
         </template>
       </ElTableColumn>
       <ElTableColumn label="操作">
         <template #default="{ row }">
-          <ElButton size="small" text @click="resetTargetId = (row as AdminUser).id">重置密码</ElButton>
-          <ElButton v-if="(row as AdminUser).totp_enabled" size="small" text @click="resetTwoFactor(row as AdminUser)">重置两步验证</ElButton>
-          <ElButton size="small" text type="danger" @click="removeUser(row as AdminUser)">删除</ElButton>
+          <ElButton size="small" text @click="resetTargetId = asAdminUser(row).id">重置密码</ElButton>
+          <ElButton v-if="asAdminUser(row).totp_enabled" size="small" text @click="resetTwoFactor(asAdminUser(row))">重置两步验证</ElButton>
+          <ElButton size="small" text type="danger" @click="removeUser(asAdminUser(row))">删除</ElButton>
         </template>
       </ElTableColumn>
     </ElTable>
