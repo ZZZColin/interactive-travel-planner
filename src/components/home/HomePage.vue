@@ -131,9 +131,9 @@ async function requestDelete(plan: PlanRecord): Promise<void> {
       <ElButton text class="home-topbar-action" title="服务器同步、修改密码与退出登录" @click="emit('accountSync')"><i class="pi pi-cloud" /><span>账号与同步</span></ElButton>
       <ElButton text class="home-topbar-action" title="两步验证、用户管理与审计日志" @click="emit('securityAdmin')"><i class="pi pi-shield" /><span>安全与管理</span></ElButton>
       <template v-if="store.plans.length">
-        <ElButton class="home-ai-import" @click="emit('aiImport')"><i class="pi pi-sparkles" />AI 导入计划</ElButton>
-        <ElButton type="primary" class="home-create-top" @click="emit('create')">
-          <i class="pi pi-plus" />新建计划
+        <ElButton class="home-cta-button home-ai-import" @click="emit('aiImport')"><i class="pi pi-sparkles" /><span>AI 导入计划</span></ElButton>
+        <ElButton type="primary" class="home-cta-button home-create-top" @click="emit('create')">
+          <i class="pi pi-plus" /><span>新建计划</span>
         </ElButton>
       </template>
     </header>
