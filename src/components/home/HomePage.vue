@@ -110,10 +110,10 @@ async function requestDelete(plan: PlanRecord): Promise<void> {
       <div class="brand"><span class="brandmark">途</span>行途规划</div>
       <div class="spacer" />
       <LocaleSwitcher />
-      <ElButton text class="home-recycle-entry" title="查看别人分享给你的计划" @click="emit('sharedWithMe')"><i class="pi pi-share-alt" /><span>共享给我</span></ElButton>
-      <ElButton v-if="store.recycleBin.length" text class="home-recycle-entry" title="打开计划回收站" @click="emit('recycle')"><i class="pi pi-trash" /><span>回收站</span><em>{{ store.recycleBin.length }}</em></ElButton>
+      <ElButton text class="home-topbar-action" title="查看别人分享给你的计划" @click="emit('sharedWithMe')"><i class="pi pi-share-alt" /><span>共享给我</span></ElButton>
+      <ElButton v-if="store.recycleBin.length" text class="home-topbar-action" title="打开计划回收站" @click="emit('recycle')"><i class="pi pi-trash" /><span>回收站</span><em>{{ store.recycleBin.length }}</em></ElButton>
       <ElDropdown trigger="click" popper-class="home-migration-menu" @command="openMigration" @visible-change="migrationOpen = $event">
-        <ElButton text class="home-backup-entry home-migration-entry" :class="{ open: migrationOpen }" title="导入、导出与迁移数据"><i class="pi pi-box" /><span>导入导出</span><i class="pi pi-chevron-down" /></ElButton>
+        <ElButton text class="home-topbar-action" :class="{ open: migrationOpen }" title="导入、导出与迁移数据"><i class="pi pi-box" /><span>导入导出</span><i class="pi pi-chevron-down" /></ElButton>
         <template #dropdown>
           <ElDropdownMenu>
             <ElDropdownItem command="complete" class="home-migration-item recommended">
@@ -128,8 +128,8 @@ async function requestDelete(plan: PlanRecord): Promise<void> {
           </ElDropdownMenu>
         </template>
       </ElDropdown>
-      <ElButton text class="home-backup-entry" title="服务器同步、修改密码与退出登录" @click="emit('accountSync')"><i class="pi pi-cloud" /><span>账号与同步</span></ElButton>
-      <ElButton text class="home-backup-entry" title="两步验证、用户管理与审计日志" @click="emit('securityAdmin')"><i class="pi pi-shield" /><span>安全与管理</span></ElButton>
+      <ElButton text class="home-topbar-action" title="服务器同步、修改密码与退出登录" @click="emit('accountSync')"><i class="pi pi-cloud" /><span>账号与同步</span></ElButton>
+      <ElButton text class="home-topbar-action" title="两步验证、用户管理与审计日志" @click="emit('securityAdmin')"><i class="pi pi-shield" /><span>安全与管理</span></ElButton>
       <template v-if="store.plans.length">
         <ElButton class="home-ai-import" @click="emit('aiImport')"><i class="pi pi-sparkles" />AI 导入计划</ElButton>
         <ElButton type="primary" class="home-create-top" @click="emit('create')">
